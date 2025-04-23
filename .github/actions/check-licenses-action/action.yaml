@@ -1,0 +1,34 @@
+name: "Check Licenses"
+description: "Checks licenses against an allowed list and outputs a report artifact"
+inputs: 
+  project:
+    required: true
+    default: src/Service/Service.csproj
+    description: "Root project file, e.g. the service project"
+runs:
+  using: "composite"
+  steps:
+    - name: Check Licenses
+      shell: bash
+      env:
+        project: ${{ inputs.project }}
+      run: |
+        dotnet tool install --global nuget-license
+        PATH=/root/.dotnet/tools:$PATH
+        mkdir -p out
+        nuget-license --input ${{ env.project }} \
+          --include-shared-projects \
+          --output jsonpretty \
+          --allowed-license-types ./.github/actions/check-licenses-action/allowed-licenses.json \
+          --ignored-packages ./.github/actions/check-licenses-action/ignored-packages.json \
+          --file-output out/licenses.json
+    - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+      if: always()
+      name: table
+      id: table
+      with:
+        json_file_path: "out/licenses.json"
+    - name: Output to markdown
+      if: always()
+      shell: bash
+      run: echo "${{ steps.table.outputs.table }}" >> $GITHUB_STEP_SUMMARY

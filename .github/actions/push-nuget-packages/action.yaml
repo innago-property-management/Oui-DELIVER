@@ -1,0 +1,20 @@
+name: "Push NuGet packages"
+description: "Uploads NuGet packages to GitHub"
+inputs: 
+  githubToken:
+    required: true
+    description: "GitHub token"
+runs:
+  using: "composite"
+  steps:
+    - name: Push Nuget packages
+      shell: bash
+      env: 
+        GITHUB_TOKEN: "${{ inputs.githubToken }}"
+      run: |
+        find . -path '**/bin/Release/*.nupkg' -print0 | while IFS= read -r -d $'\0' file; do 
+          dotnet nuget push "$file" \
+            --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
+            --api-key "${{ env.GITHUB_TOKEN }}" \
+            --skip-duplicate
+        done
