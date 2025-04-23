@@ -17,10 +17,13 @@ jobs:
       image: ghcr.io/gitleaks/gitleaks:latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with: 
+          path: checked_out_code
       - name: GitLeaks
+        shell: bash
         run: |
-          git config --global --add safe.directory "${{ github.workspace }}"
-          gitleaks detect --verbose
+          git config --global --add safe.directory "/checked_out_code"
+          gitleaks detect --verbose --source "/checked_out_code"
   vulnerabilities:
     runs-on: ubuntu-latest
     steps:
