@@ -8,5 +8,7 @@ on:
 jobs:
   pull_request:
     uses: ./.github/workflows/auto-pr.yml
-    secrets: inherit
+    secrets:
+      githubToken: ${{ secrets.githubToken }}
+  
   
