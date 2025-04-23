@@ -1,0 +1,79 @@
+name: merge-checks
+
+on:
+#  push:
+#    branches: [ "main" ]
+#  pull_request:
+#    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+  secrets:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: GitLeaks
+        run: |
+          git config --global --add safe.directory /__w/innago-email-to-property-owner/innago-email-to-property-owner
+          gitleaks detect --verbose
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '9.x'
+      - shell: bash
+        name: vulnerable
+        run: |
+          dotnet restore
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
+          cat vuln.log >> $GITHUB_STEP_SUMMARY
+          
+          if grep -iq -w -c "critical\|high\|moderate\|low" vuln.log; then
+            COUNT=$(grep -ic -w "critical\|high\|moderate\|low" vuln.log)
+            echo "Security: Vulnerabilities found on the log output: $COUNT"
+            exit 1
+          else
+            echo "No vulnerabilities found"
+            exit 0
+          fi
+  outdated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '9.x'
+      - name: Install jq
+        uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
+      - name: Outdated Tool
+        shell: bash
+        run: |
+          PATH=/root/.dotnet/tools:$PATH
+          dotnet tool install --global dotnet-outdated-tool
+          dotnet outdated *.slnx \
+            --output outdated.json \
+            --fail-on-updates \
+            --version-lock Major
+      - shell: bash
+        if: failure()
+        name: Transform
+        run: |
+          cat outdated.json | jq jq '[.Projects[] | {"name": .Name, "package": (.TargetFrameworks[0].Dependencies[] | .Name ), "severity": (.TargetFrameworks[0].Dependencies[] | .UpgradeSeverity ), "latestVersion": (.TargetFrameworks[0].Dependencies[] | .LatestVersion  } ]' > outdatedProjects.json
+      - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+        if: failure()
+        name: table
+        id: table
+        with:
+          json_file_path: outdatedProjects.json

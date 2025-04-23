@@ -1,0 +1,61 @@
+name: "Build DotNet"
+description: "Builds a solution"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  githubToken:
+    required: true
+    description: "Github Token - for cobertura action"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      with:
+        dotnet-version: '9.x'
+    - name: Build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        MINIMUM_COVERAGE: ${{ inputs.minimumCoverage }}
+        REPORTS_PATH: test/results
+      run: |
+        dotnet restore
+        dotnet build --configuration Release --no-restore /p:Version="$VERSION"
+        dotnet test \
+          --no-restore \
+          --configuration Release \
+          --test-adapter-path:. \
+          --logger:"trx;LogFileName=test_results.trx" \
+          /p:CollectCoverage=true \
+          /p:Threshold="$MINIMUM_COVERAGE" \
+          /p:ThresholdType=line \
+          /p:ThresholdStat=total \
+          --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
+          --results-directory="$REPORTS_PATH"
+    - name: ReportGenerator
+      uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
+      with:
+        reports: '*/**/coverage.opencover.xml'
+        reporttypes: 'Html;MarkdownSummary'
+        assemblyfilters: '-xunit*;-Dapper;'
+        classfilters: '+*'
+        filefilters: '-Startup.cs;-Program.cs;-*.cshtml'
+        verbosity: 'Warning'
+        targetdir: 'test/results/coverage'
+    - name: Output to markdown
+      if: always()
+      shell: bash
+      run: cat test/results/coverage/Summary.md >> $GITHUB_STEP_SUMMARY
+    - name: Test Report
+      uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
+      if: always()
+      with:
+        name: dotnet tests
+        path: "test/results/test_results.trx"
+        reporter: dotnet-trx

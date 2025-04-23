@@ -1,0 +1,91 @@
+name: "Build, Publish, and Sign a Container Image"
+description: "Docker build, push; Cosign"
+inputs:
+  registry:
+    required: false
+    default: ghcr.io
+    description: "Registry"
+  username:
+    required: true
+    description: "GitHub Actor"
+  password:
+    required: true
+    description: "GitHub Token"
+  version:
+    required: true
+    description: "Semantic Version"
+  imageName:
+    required: true
+    description: "Image Name"
+  organizationName:
+    required: true
+    default: "innago-property-management"
+    description: "Org name"
+  imageTitle:
+    required: true
+    description: "Title of the image from the repository"
+  imageDescription:
+    required: true
+    description: "Description of the image from the repository"
+  repositoryUrl:
+    required: true
+    description: "URL of the repository"
+  sha:
+    required: true
+    description: "The commit SHA"
+  cosignKey:
+    required: true
+    description: "Cosign key"
+  cosignPassword:
+    required: true
+    description: "Password for Cosign key"
+runs:
+  using: "composite"
+  steps:
+    - name: Set up cosign
+      uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # 3.8.1
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Publish container image
+      id: publish
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # 6.15.0
+      env:
+        VERSION: ${{ inputs.version }}
+        IMAGE_NAME: ${{ inputs.imageName }}
+      with:
+        push: true
+        builder: ${{ steps.buildx.outputs.name }}
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        tags: |
+          ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}:${{ inputs.version }}
+        labels: |
+          org.opencontainers.image.title=${{ inputs.imageTitle }}
+          org.opencontainers.image.description=${{ inputs.imageDescription }}
+          org.opencontainers.image.url=${{ inputs.repositoryUrl }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+          org.opencontainers.image.version=${{ inputs.version }}
+        annotations: |
+          org.opencontainers.image.title=${{ inputs.imageTitle }}
+          org.opencontainers.image.description=${{ inputs.imageDescription }}
+          org.opencontainers.image.url=${{ inputs.repositoryUrl }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+          org.opencontainers.image.version=${{ inputs.version }}
+    - name: sign container image
+      run: |
+        cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
+      shell: bash
+      env:
+        COSIGN_KEY: ${{inputs.cosignKey}}
+        COSIGN_PASSWORD: ${{inputs.cosignPassword}}
+        IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}"
+        DIGEST: ${{ steps.publish.outputs.digest }}
