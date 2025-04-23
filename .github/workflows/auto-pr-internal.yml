@@ -9,6 +9,6 @@ jobs:
   pull_request:
     uses: ./.github/workflows/auto-pr.yml
     secrets:
-      githubToken: ${{ secrets.githubToken }}
+      githubToken: ${{ secrets.semverToken }}
   
   
