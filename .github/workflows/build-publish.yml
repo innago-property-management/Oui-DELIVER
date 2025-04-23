@@ -1,12 +1,59 @@
 name: build-publish
 on:
-#  push:
-#    branches: [ "main" ]
-#    tags: ["*"]
-#  pull_request:
-#    branches: [ "main" ]
-
   workflow_dispatch:
+    inputs:
+      username:
+        type: string
+        required: true
+        description: "github.actor"
+      imageTitle:
+        type: string
+        required: true
+        description: "github.event.repository.name"
+      imageDescription:
+        type: string
+        required: true
+        description: "github.event.repository.description"
+      repositoryUrl:
+        type: string
+        required: true
+        description: "github.event.repository.html_url"
+      sha:
+        type: string
+        required: true
+        description: "github.sha"
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        description: "Github token"
+        required: true
+      COSIGN_KEY:
+        description: "Cosign key"
+        required: true
+      COSIGN_PASSWORD:
+        description: "Cosign password"
+        required: true
+    inputs:
+      username:
+        type: string
+        required: true
+        description: "github.actor"
+      imageTitle:
+        type: string
+        required: true
+        description: "github.event.repository.name"
+      imageDescription:
+        type: string
+        required: true
+        description: "github.event.repository.description"
+      repositoryUrl:
+        type: string
+        required: true
+        description: "github.event.repository.html_url"
+      sha:
+        type: string
+        required: true
+        description: "github.sha"
 jobs:
   version:
     uses: ./.github/workflows/semver.yml
@@ -24,7 +71,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Build
         uses: ./.github/actions/build-dotnet
-        with: 
+        with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
       - name: Check licenses
@@ -52,14 +99,14 @@ jobs:
         uses: ./.github/actions/build-publish-sign-docker
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ inputs.username }}
           password: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ needs.version.outputs.version }}
           imageName: email-to-property-owner-id
           organizationName: innago-property-management
-          imageTitle: ${{ github.event.repository.name }}
-          imageDescription: ${{ github.event.repository.description }}
-          repositoryUrl: ${{ github.event.repository.html_url }}
-          sha: ${{ github.sha }}
+          imageTitle: ${{ inputs.imageTitle }}
+          imageDescription: ${{ inputs.imageDescription }}
+          repositoryUrl: ${{ inputs.repositoryUrl }}
+          sha: ${{ inputs.sha }}
           cosignKey: ${{secrets.COSIGN_KEY}}
           cosignPassword: ${{secrets.COSIGN_PASSWORD}}
