@@ -1,0 +1,13 @@
+name: auto-pr
+on:
+  push:
+    branches:
+      - "**"
+    
+
+jobs:
+  pull_request:
+    uses: ./.github/workflows/auto-pr.yml
+    with:
+      githubToken: ${{ secrets.SEMVER_TOKEN }}
+  

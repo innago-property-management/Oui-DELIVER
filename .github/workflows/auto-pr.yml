@@ -1,15 +1,11 @@
 name: auto-pr
 on:
-  push:
-    branches:
-      - "**"
   workflow_call:
     inputs: 
       githubToken:
         description: "Github token"
         required: true
         type: string
-        default: ${{ secrets.SEMVER_TOKEN }}
 
 jobs:
   pull_request:
