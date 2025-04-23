@@ -4,7 +4,11 @@ on:
     branches:
       - "**"
   workflow_call:
-    
+    inputs: 
+      githubToken:
+        description: "Github token"
+        required: true
+        type: string
 
 jobs:
   pull_request:
@@ -15,4 +19,4 @@ jobs:
         uses: diillson/auto-pull-request@4cf50b3681cd76250f37841466e61e514a377064 #v1.0.1
         with:
           destination_branch: 'main'
-          github_token: ${{ secrets.SEMVER_TOKEN }}
+          github_token: ${{ inputs.githubToken }}
