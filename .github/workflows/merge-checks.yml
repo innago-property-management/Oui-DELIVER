@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: GitLeaks
         run: |
-          git config --global --add safe.directory /__w/innago-email-to-property-owner/innago-email-to-property-owner
+          git config --global --add safe.directory /__w/
           gitleaks detect --verbose
   vulnerabilities:
     runs-on: ubuntu-latest
