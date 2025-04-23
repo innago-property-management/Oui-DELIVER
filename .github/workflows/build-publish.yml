@@ -24,13 +24,13 @@ on:
         description: "github.sha"
   workflow_call:
     secrets:
-      GITHUB_TOKEN:
+      githubToken:
         description: "Github token"
         required: true
-      COSIGN_KEY:
+      cosignKey:
         description: "Cosign key"
         required: true
-      COSIGN_PASSWORD:
+      cosignPassword:
         description: "Cosign password"
         required: true
     inputs:
@@ -85,7 +85,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/push-nuget-packages
         with:
-          githubToken: "${{ secrets.GITHUB_TOKEN }}"
+          githubToken: "${{ secrets.githubToken }}"
       - name: Generate SBOM
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/generate-sbom-dotnet
@@ -100,7 +100,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ inputs.username }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.githubToken }}
           version: ${{ needs.version.outputs.version }}
           imageName: email-to-property-owner-id
           organizationName: innago-property-management
@@ -108,5 +108,5 @@ jobs:
           imageDescription: ${{ inputs.imageDescription }}
           repositoryUrl: ${{ inputs.repositoryUrl }}
           sha: ${{ inputs.sha }}
-          cosignKey: ${{secrets.COSIGN_KEY}}
-          cosignPassword: ${{secrets.COSIGN_PASSWORD}}
+          cosignKey: ${{secrets.cosignKey}}
+          cosignPassword: ${{secrets.cosignPassword}}
