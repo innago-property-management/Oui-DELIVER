@@ -9,6 +9,7 @@ on:
         description: "Github token"
         required: true
         type: string
+        default: ${{ secrets.SEMVER_TOKEN }}
 
 jobs:
   pull_request:
