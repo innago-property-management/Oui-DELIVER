@@ -70,7 +70,7 @@ jobs:
         if: failure()
         name: Transform
         run: |
-          cat outdated.json | jq jq '[.Projects[] | {"name": .Name, "package": (.TargetFrameworks[0].Dependencies[] | .Name ), "severity": (.TargetFrameworks[0].Dependencies[] | .UpgradeSeverity ), "latestVersion": (.TargetFrameworks[0].Dependencies[] | .LatestVersion  } ]' > outdatedProjects.json
+          cat outdated.json | jq '[.Projects[] | {"name": .Name, "package": (.TargetFrameworks[0].Dependencies[] | .Name ), "severity": (.TargetFrameworks[0].Dependencies[] | .UpgradeSeverity ), "latestVersion": (.TargetFrameworks[0].Dependencies[] | .LatestVersion  } ]' > outdatedProjects.json
       - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
         if: failure()
         name: table
