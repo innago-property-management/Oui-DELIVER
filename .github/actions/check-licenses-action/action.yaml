@@ -10,6 +10,8 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install jq
+      uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
     - name: Find csproj files
       id: find_projects
       shell: bash
@@ -17,15 +19,7 @@ runs:
         PROJECTS=$(find src -name "*.csproj" -print0 | xargs -0 -n 1)
         echo "PROJECTS=$PROJECTS" >> $GITHUB_ENV
         
-        PROJECT_JSON="["
-        IFS=$'\n'
-        
-        for PROJECT in $PROJECTS; do
-        PROJECT_JSON+="\"$PROJECT\","
-        done
-        
-        PROJECT_JSON=$(printf '%s' "$PROJECT_JSON" | sed 's/,$//') # Remove trailing comma
-        PROJECT_JSON+="]"
+        PROJECT_JSON=$(echo "$PROJECTS" | jq --raw-input --slurp --compact-output 'split("\n") | map(select(length > 0))')
         echo "PROJECT_JSON=$PROJECT_JSON" >> $GITHUB_ENV
     - name: Check Licenses for each project
       shell: bash
