@@ -16,13 +16,15 @@ runs:
       run: |
         PROJECTS=$(find src -name "*.csproj" -print0 | xargs -0 -n 1)
         echo "PROJECTS=$PROJECTS" >> $GITHUB_ENV
-        # Create a JSON array of project paths for subsequent steps
+        
         PROJECT_JSON="["
         IFS=$'\n'
+        
         for PROJECT in $PROJECTS; do
-          PROJECT_JSON+=\"\\\"$PROJECT\\\", \"
+        PROJECT_JSON+="\"$PROJECT\","
         done
-        PROJECT_JSON=$(printf '%s' "$PROJECT_JSON" | sed 's/, $//') # Remove trailing comma
+        
+        PROJECT_JSON=$(printf '%s' "$PROJECT_JSON" | sed 's/,$//') # Remove trailing comma
         PROJECT_JSON+="]"
         echo "PROJECT_JSON=$PROJECT_JSON" >> $GITHUB_ENV
     - name: Check Licenses for each project
