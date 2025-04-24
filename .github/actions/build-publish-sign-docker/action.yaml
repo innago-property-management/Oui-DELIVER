@@ -19,7 +19,6 @@ inputs:
     description: "Image Name"
   organizationName:
     required: true
-    default: "innago-property-management"
     description: "Org name"
   imageTitle:
     required: true
