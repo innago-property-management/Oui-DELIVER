@@ -19,7 +19,7 @@ runs:
         PROJECTS=$(find src -name "*.csproj" -print0 | xargs -0 -n 1)
         echo "PROJECTS=$PROJECTS" >> $GITHUB_ENV
         
-        PROJECT_JSON=$(echo "$PROJECTS" | jq --raw-input --slurp --compact-output 'split("\n") | map(select(length > 0))')
+        PROJECT_JSON=$(echo "$PROJECTS" | jq --raw-input --slurp --compact-output 'split("\n") | map(select(length > 0)) | tojson')
         echo "PROJECT_JSON=$PROJECT_JSON" >> $GITHUB_ENV
     - name: Check Licenses for each project
       shell: bash
