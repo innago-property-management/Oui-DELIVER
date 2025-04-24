@@ -26,7 +26,7 @@ on:
         required: true
 jobs:
   version:
-    uses: ./.github/workflows/semver.yml
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
   build:
     runs-on: ubuntu-latest
     permissions:
@@ -40,7 +40,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Build
-        uses: ./.github/actions/build-dotnet
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@main
         with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
