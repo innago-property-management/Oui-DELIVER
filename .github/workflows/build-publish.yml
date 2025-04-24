@@ -7,6 +7,12 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
+      allowed_licenses_path:
+        required: true
+        description: "Path to the allowed licenses JSON file"
+      ignored_packages_path:
+        required: true
+        description: "Path to the ignored packages JSON file"
   workflow_call:
     inputs:
       imageName:
@@ -14,6 +20,14 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
+      allowed_licenses_path:
+        required: true
+        description: "Path to the allowed licenses JSON file"
+        type: string
+      ignored_packages_path:
+        required: true
+        description: "Path to the ignored packages JSON file"
+        type: string
     secrets:
       githubToken:
         description: "Github token"
@@ -46,6 +60,9 @@ jobs:
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
       - name: Check licenses
         uses: innago-property-management/Oui-DELIVER/.github/actions/check-licenses-action@main
+        with:
+          allowed_licenses_path: "${{ inputs.allowed_licenses_path }}"
+          ignored_packages_path: "${{ inputs.ignored_packages_path }}"
       - name: Upload licenses
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
