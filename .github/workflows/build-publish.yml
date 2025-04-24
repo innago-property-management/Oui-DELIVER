@@ -1,28 +1,17 @@
 name: build-publish
 on:
   workflow_dispatch:
-    inputs:
-      username:
-        type: string
+    inputs: 
+      imageName:
         required: true
-        description: "github.actor"
-      imageTitle:
+        description: "Image Name"
         type: string
-        required: true
-        description: "github.event.repository.name"
-      imageDescription:
-        type: string
-        required: true
-        description: "github.event.repository.description"
-      repositoryUrl:
-        type: string
-        required: true
-        description: "github.event.repository.html_url"
-      sha:
-        type: string
-        required: true
-        description: "github.sha"
   workflow_call:
+    inputs:
+      imageName:
+        required: true
+        description: "Image Name"
+        type: string
     secrets:
       githubToken:
         description: "Github token"
@@ -33,27 +22,6 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
-    inputs:
-      username:
-        type: string
-        required: true
-        description: "github.actor"
-      imageTitle:
-        type: string
-        required: true
-        description: "github.event.repository.name"
-      imageDescription:
-        type: string
-        required: true
-        description: "github.event.repository.description"
-      repositoryUrl:
-        type: string
-        required: true
-        description: "github.event.repository.html_url"
-      sha:
-        type: string
-        required: true
-        description: "github.sha"
 jobs:
   version:
     uses: ./.github/workflows/semver.yml
@@ -99,14 +67,14 @@ jobs:
         uses: ./.github/actions/build-publish-sign-docker
         with:
           registry: ghcr.io
-          username: ${{ inputs.username }}
+          username: ${{ github.actor }}
           password: ${{ secrets.githubToken }}
           version: ${{ needs.version.outputs.version }}
-          imageName: email-to-property-owner-id
+          imageName: ${{ inputs.imageName }}
           organizationName: innago-property-management
-          imageTitle: ${{ inputs.imageTitle }}
-          imageDescription: ${{ inputs.imageDescription }}
-          repositoryUrl: ${{ inputs.repositoryUrl }}
-          sha: ${{ inputs.sha }}
+          imageTitle: ${{ github.event.repository.name }}
+          imageDescription: ${{ github.event.repository.description }}
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
