@@ -1,34 +1,76 @@
 name: "Check Licenses"
-description: "Checks licenses against an allowed list and outputs a report artifact"
-inputs: 
-  project:
+description: "Checks licenses against an allowed list and outputs a report artifact for each project"
+inputs:
+  allowed_licenses_path:
     required: true
-    default: src/Service/Service.csproj
-    description: "Root project file, e.g. the service project"
+    description: "Path to the allowed licenses JSON file"
+  ignored_packages_path:
+    required: true
+    description: "Path to the ignored packages JSON file"
 runs:
   using: "composite"
   steps:
-    - name: Check Licenses
+    - name: Find csproj files
+      id: find_projects
+      shell: bash
+      run: |
+        PROJECTS=$(find src -name "*.csproj" -print0 | xargs -0 -n 1)
+        echo "PROJECTS=$PROJECTS" >> $GITHUB_ENV
+        # Create a JSON array of project paths for subsequent steps
+        PROJECT_JSON="["
+        IFS=$'\n'
+        for PROJECT in $PROJECTS; do
+          PROJECT_JSON+=\"\\\"$PROJECT\\\", \"
+        done
+        PROJECT_JSON=$(printf '%s' "$PROJECT_JSON" | sed 's/, $//') # Remove trailing comma
+        PROJECT_JSON+="]"
+        echo "PROJECT_JSON=$PROJECT_JSON" >> $GITHUB_ENV
+    - name: Check Licenses for each project
       shell: bash
       env:
-        project: ${{ inputs.project }}
+        ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
+        IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
-        dotnet tool install --global nuget-license
-        PATH=/root/.dotnet/tools:$PATH
-        mkdir -p out
-        nuget-license --input ${{ env.project }} \
-          --include-shared-projects \
-          --output jsonpretty \
-          --allowed-license-types ./.github/actions/check-licenses-action/allowed-licenses.json \
-          --ignored-packages ./.github/actions/check-licenses-action/ignored-packages.json \
-          --file-output out/licenses.json
-    - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
-      if: always()
-      name: table
-      id: table
-      with:
-        json_file_path: "out/licenses.json"
-    - name: Output to markdown
-      if: always()
+        echo "Projects: $PROJECT_JSON"
+        projects=$(echo "$PROJECT_JSON" | jq -r '.[]') #convert json array to bash array
+        echo "Found Projects: $projects"
+        for project in $projects;
+        do
+          echo "Checking licenses for: $project"
+          projectName=$(basename "$project" .csproj) # Extract project name without .csproj
+          output_path="out/${projectName}-licenses.json"
+          mkdir -p out
+          dotnet tool install --global nuget-license
+          PATH=/root/.dotnet/tools:$PATH
+          nuget-license --input "$project" \
+            --include-shared-projects \
+            --output jsonpretty \
+            --allowed-license-types "$ALLOWED_LICENSES_PATH" \
+            --ignored-packages "$IGNORED_PACKAGES_PATH" \
+            --file-output "$output_path"
+          echo "License check outputted to $output_path"
+        done
+    - name: Output Markdown Tables
       shell: bash
-      run: echo "${{ steps.table.outputs.table }}" >> $GITHUB_STEP_SUMMARY
+      run: |
+        projects=$(echo "$PROJECT_JSON" | jq -r '.[]') #convert json array to bash array
+        for project in $projects
+        do
+          projectName=$(basename "$project" .csproj)
+          echo "Generating Markdown table for $projectName"
+          output_path="out/${projectName}-licenses.json"
+          # Generate markdown table for each project
+          if [ -f "$output_path" ]; then
+            echo "::group::Licenses for $projectName"
+            npx --no json-to-markdown-table "$output_path"
+            echo "::endgroup::"
+          else
+            echo "No license file found at $output_path"
+          fi
+        done
+      working-directory: ${{ github.workspace }}
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: license-reports
+        path: out/
