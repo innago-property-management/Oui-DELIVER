@@ -22,18 +22,12 @@ jobs:
   use-array:
     runs-on: ubuntu-latest
     needs: create-array
+    strategy:
+      matrix:
+        files: ${{ needs.create-array.outputs.file_list }}
     steps:
       - name: Use Array Output
+        with:
+          file: ${{ matrix.files }}
         run: |
-          # Parse the JSON output back into a usable array
-          FILES_JSON="${{ needs.create-array.outputs.file_list }}"
-          FILES=$(echo "$FILES_JSON" | jq -r '.files[]')
-          
-          # Print the files (iterate if necessary)
-          echo "Files found:"
-          echo "$FILES"
-          
-          # You can process the array elements here
-          # for file in ${FILES[@]}; do
-          #   echo "- $file"
-          # done
+          echo "${ file }"
