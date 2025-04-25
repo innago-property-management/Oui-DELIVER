@@ -29,5 +29,6 @@ jobs:
       - name: Use Array Output
         with:
           file: ${{ matrix.files }}
+        shell: bash
         run: |
           echo "${ file }"
