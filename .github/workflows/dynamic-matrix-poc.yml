@@ -15,6 +15,22 @@ jobs:
           FILES=$(ls -1 | tr '\n' ' ' | sed 's/ $/"/' | sed 's/ /","/g' | sed 's/^/"/')
           echo "${FILES}"
           echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
+      - name: Upload Array Output without matrix
+        uses: actions/github-script@v7
+        with:
+          github-token: '${{ secrets.SEMVER_TOKEN }}'
+          script: |
+            files=$(echo $FILES | sed 's/,/ /g')
+            for f in $files; do
+            
+              await github.rest.repos.createDispatchEvent({
+                owner: github.context.repo.owner,
+                repo: github.context.repo.repo,
+                event_type: 'create-array',
+                client_payload: { "text": "$f" }
+              });
+            
+            done
   
   use-array:
     runs-on: ubuntu-latest
