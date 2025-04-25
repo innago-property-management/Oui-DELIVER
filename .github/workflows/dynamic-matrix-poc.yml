@@ -27,8 +27,6 @@ jobs:
         files: ${{ needs.create-array.outputs.file_list }}
     steps:
       - name: Use Array Output
-        with:
-          file: ${{ matrix.files }}
         shell: bash
         run: |
-          echo "${ file }"
+          echo "${{ matrix.files }}"
