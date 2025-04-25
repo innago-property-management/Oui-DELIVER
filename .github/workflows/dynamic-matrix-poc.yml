@@ -26,7 +26,7 @@ jobs:
             files=$(echo $FILES | sed 's/,/ /g')
             for f in $files; do
             
-              await github.rest.repos.createDispatchEvent({
+              github.rest.repos.createDispatchEvent({
                 owner: github.context.repo.owner,
                 repo: github.context.repo.repo,
                 event_type: 'create-array',
