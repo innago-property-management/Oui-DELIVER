@@ -15,7 +15,7 @@ jobs:
       - name: List Files and Create Array
         id: list_files
         run: |
-          FILES=$(ls -1 | tr '\n' ' ' | sed 's/[^| $]/"/' | sed 's/ /","/g')
+          FILES=$(ls -1 | tr '\n' ' ' | sed 's/ $/"/' | sed 's/ /","/g' | sed 's/^/"/')
           echo "${FILES}"
           echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
   
