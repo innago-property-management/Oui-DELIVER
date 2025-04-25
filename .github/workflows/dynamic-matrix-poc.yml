@@ -24,7 +24,7 @@ jobs:
     needs: create-array
     strategy:
       matrix:
-        files: ${{ needs.create-array.outputs.file_list }}
+        files: ${{ fromJSON(needs.create-array.outputs.file_list) }}
     steps:
       - name: Use Array Output
         shell: bash
