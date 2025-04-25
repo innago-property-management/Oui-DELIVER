@@ -20,11 +20,13 @@ jobs:
           echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
       - name: Upload Array Output without matrix
         uses: actions/github-script@v7
+        env:
+          FILES: ${{ env.FILES }}
         with:
           github-token: '${{ secrets.SEMVER_TOKEN }}'
           script: |
-            files=$(echo $FILES | sed 's/,/ /g')
-            for f in $files; do
+            const {FILES} = process.env;
+            for (const f of FILES.split(',')) {
             
               github.rest.repos.createDispatchEvent({
                 owner: github.context.repo.owner,
@@ -32,8 +34,7 @@ jobs:
                 event_type: 'create-array',
                 client_payload: { "text": "$f" }
               });
-            
-            done
+            }
   
   use-array:
     runs-on: ubuntu-latest
