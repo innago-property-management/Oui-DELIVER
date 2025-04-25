@@ -28,7 +28,7 @@ jobs:
             const {FILES} = process.env;
             for (const f of FILES.split(',')) {
             
-              github.rest.repos.createDispatchEvent({
+              await github.rest.repos.createDispatchEvent({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 event_type: 'create-array',
@@ -44,6 +44,6 @@ jobs:
         files: ${{ fromJSON(needs.create-array.outputs.file_list) }}
     steps:
       - name: Use Array Output
-        uses: ./.github/actions/echo-job.yaml
+        uses: ./.github/workflows/echo-job.yaml
         with: 
           text: ${{ matrix.files }}
