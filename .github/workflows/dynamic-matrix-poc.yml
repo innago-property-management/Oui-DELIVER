@@ -29,8 +29,8 @@ jobs:
             for (const f of FILES.split(',')) {
             
               github.rest.repos.createDispatchEvent({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
                 event_type: 'create-array',
                 client_payload: { "text": "$f" }
               });
