@@ -1,7 +1,4 @@
 on:
-  push:
-    branches-ignore:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -27,6 +24,6 @@ jobs:
         files: ${{ fromJSON(needs.create-array.outputs.file_list) }}
     steps:
       - name: Use Array Output
-        shell: bash
-        run: |
-          echo "${{ matrix.files }}"
+        uses: ./.github/actions/echo-job.yaml
+        with: 
+          text: ${{ matrix.files }}

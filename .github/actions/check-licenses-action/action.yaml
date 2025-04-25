@@ -16,49 +16,47 @@ runs:
       id: find_projects
       shell: bash
       run: |
-        PROJECTS=$(find src -name "*.csproj" -print0 | xargs -0 -n 1)
-        echo "PROJECTS=$PROJECTS" >> $GITHUB_ENV
-        
-        PROJECT_JSON=$(echo "$PROJECTS" | jq --raw-input --slurp --compact-output --raw-output 'split("\n") | map(select(length > 0))' | tr '"' "'")
-        echo "PROJECT_JSON=$PROJECT_JSON" >> $GITHUB_ENV
+        PROJECTS=$(find src -name "*.csproj" | tr '\n' ' ' | sed 's/ $/"/' | sed 's/ /","/g' | sed 's/^/"/')
+        PROJECTS="[${PROJECTS}]"
     - name: Check Licenses for each project
       shell: bash
       env:
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
-        echo "Projects: $PROJECT_JSON"
-        projects=$(echo "$PROJECT_JSON" | jq -r '.[]') #convert json array to bash array
-        echo "Found Projects: $projects"
-        for project in $projects;
-        do
-          echo "Checking licenses for: $project"
-          projectName=$(basename "$project" .csproj) # Extract project name without .csproj
-          output_path="out/${projectName}-licenses.json"
-          mkdir -p out
-          dotnet tool install --global nuget-license
-          PATH=/root/.dotnet/tools:$PATH
-          nuget-license --input "$project" \
-            --include-shared-projects \
-            --output jsonpretty \
-            --allowed-license-types "$ALLOWED_LICENSES_PATH" \
-            --ignored-packages "$IGNORED_PACKAGES_PATH" \
-            --file-output "$output_path"
-          echo "License check outputted to $output_path"
-        done
+       dotnet tool install --global nuget-license || continue
+       PATH=/root/.dotnet/tools:$PATH
+             
+       echo "Projects: $PROJECTS"
+       projects=$(echo "$PROJECTS" | jq -r '.[]')
+       echo "Found Projects: $projects"
+       mkdir -p out
+             
+       for project in $projects; do
+         echo "Checking licenses for: $project"
+         projectName=$(basename "$project" .csproj)
+         output_path="out/${projectName}-licenses.json"
+         nuget-license \
+          --input "$project" \
+          --include-shared-projects \
+          --output table \
+          --allowed-license-types "$ALLOWED_LICENSES_PATH" \
+          --ignored-packages "$IGNORED_PACKAGES_PATH" \
+          --file-output "$output_path"
+         echo "License check outputted to $output_path"
+       done
     - name: Output Markdown Tables
       shell: bash
       run: |
-        projects=$(echo "$PROJECT_JSON" | jq -r '.[]') #convert json array to bash array
-        for project in $projects
-        do
+        projects=$(echo "$PROJECTS" | jq -r '.[]')
+        for project in $projects; do
           projectName=$(basename "$project" .csproj)
           echo "Generating Markdown table for $projectName"
           output_path="out/${projectName}-licenses.json"
           # Generate markdown table for each project
           if [ -f "$output_path" ]; then
             echo "::group::Licenses for $projectName"
-            npx --no json-to-markdown-table "$output_path"
+            npx --yes jsonschema2mk --schema "$output_path" > "out/${projectName}-licenses.md"
             echo "::endgroup::"
           else
             echo "No license file found at $output_path"

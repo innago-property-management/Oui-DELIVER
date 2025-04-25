@@ -1,0 +1,17 @@
+on:
+  workflow_dispatch: 
+    inputs:
+      text:
+        type: string
+        required: true
+        description: some text
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: echo
+        shell: bash
+        env: 
+          text: ${{ inputs.text }}
+        run: |
+          echo "${text}"
