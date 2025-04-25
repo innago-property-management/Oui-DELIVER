@@ -10,6 +10,8 @@ jobs:
     outputs:
       file_list: ${{ steps.list_files.outputs.output_files }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: List Files and Create Array
         id: list_files
         run: |
