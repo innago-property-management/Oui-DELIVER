@@ -19,7 +19,7 @@ jobs:
           FILES=($(ls -1 *))
           
           # Encode the array as JSON to pass as a single string output
-          JSON_OUTPUT=$(jq --compact-output --argjson files "${FILES[@]}" '{"files": $files}')
+          JSON_OUTPUT=$(printf '%s\n' "${FILES[@]}" | jq -s -R 'split("\n") | map(select(length > 0)) | {files: .}')
           
           # Set the output using the GITHUB_OUTPUT environment file
           echo "output_files=$JSON_OUTPUT" >> "$GITHUB_OUTPUT"
