@@ -26,6 +26,7 @@ jobs:
           github-token: '${{ secrets.SEMVER_TOKEN }}'
           script: |
             const {FILES} = process.env;
+            console.log(FILES);
             for (const f of FILES.split(',')) {
             
               await github.rest.repos.createDispatchEvent({
@@ -44,6 +45,6 @@ jobs:
         files: ${{ fromJSON(needs.create-array.outputs.file_list) }}
     steps:
       - name: Use Array Output
-        uses: ./.github/workflows/echo-job.yaml
+        uses: ./.github/actions/echo
         with: 
           text: ${{ matrix.files }}

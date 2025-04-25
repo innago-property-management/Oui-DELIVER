@@ -1,0 +1,16 @@
+name: Echo
+description: echoes the text
+inputs: 
+  text:
+    required: true
+    description: some text
+runs:
+  using: composite
+  steps:
+    - name: Echo
+      id: echo
+      shell: bash
+      env: 
+        text: ${{ inputs.text }}
+      run: |
+        echo "${text}"
