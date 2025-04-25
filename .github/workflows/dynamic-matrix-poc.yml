@@ -17,7 +17,7 @@ jobs:
         run: |
           FILES=$(ls -1 | tr '\n' ' ')
           echo "${FILES}"
-          echo "output_files=${FILES}" >> "$GITHUB_OUTPUT"
+          echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
   
   use-array:
     runs-on: ubuntu-latest
