@@ -88,7 +88,7 @@ jobs:
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
         with:
-          githubToken: "${{ secrets.githubToken }}"
-          repoName: $"{{ inputs.argoCdRepoName }}"
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
           version: ${{ needs.version.outputs.version }}
           folderName: ${{ github.event.repository.name }}
