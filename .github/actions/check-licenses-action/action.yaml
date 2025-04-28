@@ -24,6 +24,7 @@ runs:
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
+        dotnet restore
         dotnet tool install --global nuget-license || continue
         PATH=/root/.dotnet/tools:$PATH
         solution=$(find . -type f -name '*.slnx')
