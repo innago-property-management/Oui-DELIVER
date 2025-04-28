@@ -23,14 +23,20 @@ runs:
         ref: main
         token: '${{ inputs.githubToken }}'
     - name: configure git
+      env:
+        token: ${{ inputs.githubToken }}
+        username: ${{ github.actor }}
+        repoName: ${{ inputs.repoName }}
       shell: bash
       run: |
         git config --unset-all http.https://github.com/.extraheader
         git config user.name "Innago CD bot"
         git config user.email "<>"
+        origin="https://${ username }:${token}@github.com/${repoName}"
+        git remote set-url origin "${ origin }"
     - name: install yq
       uses: dcarbone/install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # 1.3.1
-    - name: version
+    - name: update ArgoCD
       env:
         tag: "${{ inputs.version }}"
         folderName: "${{ inputs.folderName }}"
