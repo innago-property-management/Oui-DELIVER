@@ -6,6 +6,10 @@ on:
         description: "Github token"
         required: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pull_request:
     runs-on: ubuntu-latest

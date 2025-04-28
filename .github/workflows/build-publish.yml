@@ -24,6 +24,11 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
 jobs:
   version:
     uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
