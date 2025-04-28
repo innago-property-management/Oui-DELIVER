@@ -29,7 +29,7 @@ runs:
         git config user.name "Innago CD bot"
         git config user.email "<>"
     - name: install yq
-      uses: install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # 1.3.1
+      uses: dcarbone/install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # 1.3.1
     - name: version
       env:
         tag: "${{ inputs.version }}"
