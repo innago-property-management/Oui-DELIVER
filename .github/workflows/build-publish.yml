@@ -7,6 +7,11 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
   workflow_call:
     inputs:
       imageName:
