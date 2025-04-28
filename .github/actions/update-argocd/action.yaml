@@ -1,0 +1,59 @@
+name: "Update ArgoCD"
+description: "Updates the values file in an ArgoCD repo"
+inputs:
+  githubToken:
+    required: true
+    description: "GitHub token"
+  repoName:
+    required: true
+    description: "ArgoCD repo name"
+  version:
+    required: true
+    description: "Image Version"
+  folderName:
+    required: true
+    description: "Folder name containing the helm values files"
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout ArgoCD Repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      with:
+        repository: '${{ inputs.repoName }}'
+        ref: main
+        token: '${{ inputs.githubToken }}'
+    - name: configure git
+      shell: bash
+      run: |
+        git config --unset-all http.https://github.com/.extraheader
+        git config user.name "Innago CD bot"
+        git config user.email "<>"
+    - name: install yq
+      uses: install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # 1.3.1
+    - name: version
+      env:
+        tag: "${{ inputs.version }}"
+        folderName: "${{ inputs.folderName }}"
+        repoName: "${{ inputs.repoName }}"
+      shell: bash
+      run: |-
+        folderName=$(echo $folderName | tr '[:upper:]' '[:lower:]')
+        repoName=$(echo $repoName | tr '[:upper:]' '[:lower:]')
+        if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          environment="stage"
+        elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc-[0-9]+$ ]]; then
+          environment="qa"
+        elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-.* ]]; then
+          environment="dev"
+        else
+          echo "Error: Tag '$tag' does not match any known pattern."
+          exit 1
+        fi
+
+        filename="value-overrides-${environment}.yaml"
+        git checkout -b "automated/${folderName} ${version}"
+        yq --inplace ".image.tag=\"${version}\"" "values/${folderName}/${filename}"
+        yq --inplace ".migrationJob.image.tag=\"${version}\"" "values/${folderName}/${filename}"
+        git stage "${filename}"
+        git commit --message="Update $env to version ${version}"
+        git push

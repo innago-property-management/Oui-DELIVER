@@ -14,6 +14,11 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
     secrets:
       githubToken:
         description: "Github token"
@@ -79,3 +84,11 @@ jobs:
           sha: ${{ github.sha }}
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
+      - name: Update ArgoCD
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: "${{ secrets.githubToken }}"
+          repoName: $"{{ inputs.argoCdRepoName }}"
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ github.event.repository.name }}
