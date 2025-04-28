@@ -45,26 +45,26 @@ runs:
           --file-output "$output_path"
          echo "License check outputted to $output_path"
        done
-    - name: Output Markdown Tables
-      shell: bash
-      run: |
-        projects=$(echo "$PROJECTS" | jq -r '.[]')
-        for project in $projects; do
-          projectName=$(basename "$project" .csproj)
-          echo "Generating Markdown table for $projectName"
-          output_path="out/${projectName}-licenses.json"
-          # Generate markdown table for each project
-          if [ -f "$output_path" ]; then
-            echo "::group::Licenses for $projectName"
-            npx --yes jsonschema2mk --schema "$output_path" > "out/${projectName}-licenses.md"
-            echo "::endgroup::"
-          else
-            echo "No license file found at $output_path"
-          fi
-        done
-      working-directory: ${{ github.workspace }}
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-      with:
-        name: license-reports
-        path: out/
+#    - name: Output Markdown Tables
+#      shell: bash
+#      run: |
+#        projects=$(echo "$PROJECTS" | jq -r '.[]')
+#        for project in $projects; do
+#          projectName=$(basename "$project" .csproj)
+#          echo "Generating Markdown table for $projectName"
+#          output_path="out/${projectName}-licenses.json"
+#          # Generate markdown table for each project
+#          if [ -f "$output_path" ]; then
+#            echo "::group::Licenses for $projectName"
+#            npx --yes jsonschema2mk --schema "$output_path" > "out/${projectName}-licenses.md"
+#            echo "::endgroup::"
+#          else
+#            echo "No license file found at $output_path"
+#          fi
+#        done
+#      working-directory: ${{ github.workspace }}
+#    - name: Upload Artifacts
+#      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+#      with:
+#        name: license-reports
+#        path: out/
