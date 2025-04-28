@@ -41,7 +41,8 @@ runs:
          --output jsonpretty \
          --allowed-license-types "$ALLOWED_LICENSES_PATH" \
          --ignored-packages "$IGNORED_PACKAGES_PATH" \
-         --file-output "$output_path"
+         | tee "$output_path" \
+         | jq '.[] | select(.ValidationErrors != null)'
     - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
       if: always()
       name: table
