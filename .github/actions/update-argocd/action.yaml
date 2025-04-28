@@ -51,11 +51,12 @@ runs:
         fi
 
         fileName="value-overrides-${environment}.yaml"
-        git checkout -b "automated/${folderName}-${version}"
+        branchName="automated/${folderName}-${tag}"
+        git checkout -b "${branchName}"
         fullName="helm-values/${folderName}/${fileName}"
         fullName=$(realpath "${fullName}")
-        yq --inplace ".image.tag=\"${version}\"" "${fullName}"
-        yq --inplace ".migrationJob.image.tag=\"${version}\"" "${fullName}"
-        git add  "${fullName}"
-        git commit --message="Update ${env} to version ${version}"
-        git push
+        yq --inplace ".image.tag=\"${tag}\"" "${fullName}"
+        yq --inplace ".migrationJob.image.tag=\"${tag}\"" "${fullName}"
+        git add "${fullName}"
+        git commit --message="Update ${environment} to version ${tag}"
+        git push --set-upstream origin "${branchName}"
