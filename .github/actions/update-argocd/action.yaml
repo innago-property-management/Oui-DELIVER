@@ -30,7 +30,7 @@ runs:
       shell: bash
       run: |
         git config --unset-all http.https://github.com/.extraheader
-        git config user.name "Innago CD bot"`
+        git config user.name "Innago CD bot"
         git config user.email "<>"
         origin="https://${ username }:${token}@github.com/${repoName}"
         git remote set-url origin "${ origin }"
