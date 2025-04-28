@@ -33,6 +33,7 @@ runs:
           solution=$(find . -type f -name '*.sln')
         fi
         
+        mkdir out
         output_path="out/licenses.json"
         nuget-license \
          --input "$solution" \
