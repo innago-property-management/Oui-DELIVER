@@ -54,6 +54,6 @@ runs:
         git checkout -b "automated/${folderName} ${version}"
         yq --inplace ".image.tag=\"${version}\"" "values/${folderName}/${filename}"
         yq --inplace ".migrationJob.image.tag=\"${version}\"" "values/${folderName}/${filename}"
-        git stage "${filename}"
+        git add "${filename}"
         git commit --message="Update $env to version ${version}"
         git push
