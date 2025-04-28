@@ -38,7 +38,7 @@ runs:
         nuget-license \
          --input "$solution" \
          --include-shared-projects \
-         --output table \
+         --output jsonpretty \
          --allowed-license-types "$ALLOWED_LICENSES_PATH" \
          --ignored-packages "$IGNORED_PACKAGES_PATH" \
          --file-output "$output_path"
