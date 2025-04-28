@@ -7,12 +7,6 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
-      allowed_licenses_path:
-        required: true
-        description: "Path to the allowed licenses JSON file"
-      ignored_packages_path:
-        required: true
-        description: "Path to the ignored packages JSON file"
   workflow_call:
     inputs:
       imageName:
@@ -20,14 +14,6 @@ on:
         description: "Image Name. Omit if there is no Docker image to build."
         type: string
         default: ''
-      allowed_licenses_path:
-        required: true
-        description: "Path to the allowed licenses JSON file"
-        type: string
-      ignored_packages_path:
-        required: true
-        description: "Path to the ignored packages JSON file"
-        type: string
     secrets:
       githubToken:
         description: "Github token"
