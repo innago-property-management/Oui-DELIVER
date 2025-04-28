@@ -37,8 +37,8 @@ runs:
         repoName: "${{ inputs.repoName }}"
       shell: bash
       run: |-
-        folderName=$(echo $folderName | tr '[:upper:]' '[:lower:]')
-        repoName=$(echo $repoName | tr '[:upper:]' '[:lower:]')
+        folderName=$(echo $folderName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+        repoName=$(echo $repoName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           environment="stage"
         elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc-[0-9]+$ ]]; then
@@ -50,10 +50,12 @@ runs:
           exit 1
         fi
 
-        filename="value-overrides-${environment}.yaml"
-        git checkout -b "automated/${folderName} ${version}"
-        yq --inplace ".image.tag=\"${version}\"" "values/${folderName}/${filename}"
-        yq --inplace ".migrationJob.image.tag=\"${version}\"" "values/${folderName}/${filename}"
-        git add "${filename}"
-        git commit --message="Update $env to version ${version}"
+        fileName="value-overrides-${environment}.yaml"
+        git checkout -b "automated/${folderName}-${version}"
+        fullName="helm-values/${folderName}/${fileName}"
+        fullName=$(realpath "${fullName}")
+        yq --inplace ".image.tag=\"${version}\"" "${fullName}"
+        yq --inplace ".migrationJob.image.tag=\"${version}\"" "${fullName}"
+        git add  "${fullName}"
+        git commit --message="Update ${env} to version ${version}"
         git push
