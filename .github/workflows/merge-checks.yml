@@ -77,7 +77,14 @@ jobs:
         run: |
           PATH=/root/.dotnet/tools:$PATH
           dotnet tool install --global dotnet-outdated-tool
-          dotnet outdated *.slnx \
+          
+          solution=$(find . -type f -name '*.slnx')
+        
+          if [[ -z $solution ]]; then
+            solution=$(find . -type f -name '*.sln')
+          fi
+          
+          dotnet outdated "${solution}" \
             --output outdated.json \
             --fail-on-updates \
             --version-lock Major
