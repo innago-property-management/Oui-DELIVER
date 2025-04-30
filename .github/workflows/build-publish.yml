@@ -12,6 +12,11 @@ on:
         description: "ArgoCD repo name. Omit if no image."
         type: string
         default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0
   workflow_call:
     inputs:
       imageName:
@@ -24,6 +29,11 @@ on:
         description: "ArgoCD repo name. Omit if no image."
         type: string
         default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0
     secrets:
       githubToken:
         description: "Github token"
@@ -59,6 +69,7 @@ jobs:
         with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
+          minimumCoverage: "${{ inputs.minimumCoverage }}"
       - name: Push Nuget packages
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: innago-property-management/Oui-DELIVER/.github/actions/push-nuget-packages@main
