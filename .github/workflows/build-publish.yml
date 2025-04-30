@@ -17,6 +17,11 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0
+      testProjectPath:
+        required: true
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
   workflow_call:
     inputs:
       imageName:
@@ -33,7 +38,12 @@ on:
         required: false
         description: "Minimum code coverage percentage"
         type: number
-        default: 0
+        default: 0      
+      testProjectPath:
+        required: true
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
     secrets:
       githubToken:
         description: "Github token"
@@ -70,6 +80,7 @@ jobs:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
           minimumCoverage: "${{ inputs.minimumCoverage }}"
+          testProjectPath: "${{ inputs.testProjectPath }}"      
       - name: Push Nuget packages
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: innago-property-management/Oui-DELIVER/.github/actions/push-nuget-packages@main
