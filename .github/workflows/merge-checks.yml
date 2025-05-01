@@ -12,6 +12,10 @@ on:
         required: true
         description: "Path to the ignored packages JSON file"
         type: string
+    secrets: 
+      githubToken:
+        description: "Github token"
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,6 +36,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: GitLeaks
         shell: bash
+        env: 
+          GITHUB_TOKEN: "${{ secrets.githubToken }}"
         run: |
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
           WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
@@ -49,7 +55,16 @@ jobs:
           dotnet-version: '9.x'
       - shell: bash
         name: vulnerable
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
         run: |
+          dotnet nuget add source \
+            --name "github" \
+            --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
+            --username "$GHCR_USER" \
+            --password "$GHCR_TOKEN" \
+            --non-interactive
           dotnet restore
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
@@ -73,8 +88,17 @@ jobs:
       - name: Install jq
         uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
       - name: Outdated Tool
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
         shell: bash
         run: |
+          dotnet nuget add source \
+            --name "github" \
+            --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
+            --username "$GHCR_USER" \
+            --password "$GHCR_TOKEN" \
+            --non-interactive
           PATH=/root/.dotnet/tools:$PATH
           dotnet tool install --global dotnet-outdated-tool
           
