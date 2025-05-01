@@ -14,9 +14,8 @@ on:
         type: string
     secrets: 
       githubToken:
-        description: "Github token - deprecated"
-        required: false
-        
+        description: "Github token"
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,13 +57,9 @@ jobs:
         name: vulnerable
         env:
           GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
+          GHCR_TOKEN: ${{ secrets.githubToken }}
         run: |
-          dotnet nuget add source \
-            --name "github" \
-            --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN" \
-            "https://nuget.pkg.github.com/innago-property-management/index.json"
+          dotnet nuget add source --name "github" --username "$GHCR_USER" --password "$GHCR_TOKEN" "https://nuget.pkg.github.com/innago-property-management/index.json"
           
           dotnet restore
           
@@ -92,7 +87,7 @@ jobs:
       - name: Outdated Tool
         env:
           GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
+          GHCR_TOKEN: ${{ secrets.githubToken }}
         shell: bash
         run: |
           dotnet nuget add source \
@@ -133,6 +128,7 @@ jobs:
         with:
           allowed_licenses_path: "${{ inputs.allowed_licenses_path }}"
           ignored_packages_path: "${{ inputs.ignored_packages_path }}"
+          githubToken: "${{ secrets.githubToken }}"
       - name: Upload licenses
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
