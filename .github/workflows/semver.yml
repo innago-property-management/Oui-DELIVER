@@ -9,6 +9,7 @@ on:
 jobs:
   version:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     outputs:
       version: ${{ steps.get_latest_tag.outputs.version }}
     steps:
