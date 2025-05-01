@@ -24,12 +24,14 @@ concurrency:
 jobs:
   sast:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: semgrep-action
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     container:
       image: ghcr.io/gitleaks/gitleaks:latest
     steps:
@@ -47,6 +49,7 @@ jobs:
           gitleaks detect --verbose --source . --log-level trace
   vulnerabilities:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Setup .NET
@@ -82,6 +85,7 @@ jobs:
           fi
   outdated:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Setup .NET
@@ -132,6 +136,7 @@ jobs:
           json_file_path: outdatedProjects.json
   licenses:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - name: Check licenses
         uses: innago-property-management/Oui-DELIVER/.github/actions/check-licenses-action@main
