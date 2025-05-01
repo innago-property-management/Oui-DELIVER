@@ -63,8 +63,7 @@ jobs:
             --name "github" \
             --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
             --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN" \
-            --non-interactive
+            --password "$GHCR_TOKEN"
           dotnet restore
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
@@ -97,8 +96,7 @@ jobs:
             --name "github" \
             --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
             --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN" \
-            --non-interactive
+            --password "$GHCR_TOKEN"
           PATH=/root/.dotnet/tools:$PATH
           dotnet tool install --global dotnet-outdated-tool
           
