@@ -33,6 +33,7 @@ runs:
           --name "github" \
           --username "$GHCR_USER" \
           --password "$GHCR_TOKEN" \
+          --store-password-in-clear-text \
           "https://nuget.pkg.github.com/innago-property-management/index.json"
         
         dotnet restore

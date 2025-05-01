@@ -31,7 +31,16 @@ runs:
         MINIMUM_COVERAGE: ${{ inputs.minimumCoverage }}
         REPORTS_PATH: test/results
         TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ secrets.githubToken }}
       run: |
+        dotnet nuget add source \
+          --name "github" \
+          --username "$GHCR_USER" \
+          --password "$GHCR_TOKEN" \
+          --store-password-in-clear-text \
+          "https://nuget.pkg.github.com/innago-property-management/index.json"
+        
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
         dotnet test ${TEST_PROJECT_PATH} \
