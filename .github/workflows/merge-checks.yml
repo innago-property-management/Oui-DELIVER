@@ -107,6 +107,8 @@ jobs:
           PATH=/root/.dotnet/tools:$PATH
           dotnet tool install --global dotnet-outdated-tool
           
+          dotnet restore
+          
           solution=$(find . -type f -name '*.slnx')
         
           if [[ -z $solution ]]; then
