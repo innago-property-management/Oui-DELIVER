@@ -7,6 +7,9 @@ inputs:
   ignored_packages_path:
     required: true
     description: "Path to the ignored packages JSON file"
+  githubToken:
+    required: true
+    description: "Github Token"
 runs:
   using: "composite"
   steps:
@@ -22,7 +25,7 @@ runs:
       shell: bash
       env:
         GHCR_USER: ${{ github.actor }}
-        GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
+        GHCR_TOKEN: ${{ secrets.githubToken }}
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
