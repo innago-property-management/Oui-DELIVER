@@ -10,7 +10,8 @@ inputs:
     default: "0"
   githubToken:
     required: true
-    description: "Github Token - for cobertura action"
+    description: "Github Token for publish"
+  
   testProjectPath:
     required: true
     description: "Test project discovery is from the solution if this is not set."
