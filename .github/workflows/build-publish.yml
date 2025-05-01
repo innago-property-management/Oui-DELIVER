@@ -18,7 +18,7 @@ on:
         type: number
         default: 0
       testProjectPath:
-        required: true
+        required: false
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
@@ -40,7 +40,7 @@ on:
         type: number
         default: 0      
       testProjectPath:
-        required: true
+        required: false
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
