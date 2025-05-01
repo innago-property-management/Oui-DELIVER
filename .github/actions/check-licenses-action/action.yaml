@@ -28,13 +28,14 @@ runs:
       run: |
         dotnet nuget add source \
           --name "github" \
-          --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
           --username "$GHCR_USER" \
           --password "$GHCR_TOKEN" \
-          --non-interactive
+          "https://nuget.pkg.github.com/innago-property-management/index.json"
+        
         dotnet restore
         dotnet tool install --global nuget-license || continue
         PATH=/root/.dotnet/tools:$PATH
+        
         solution=$(find . -type f -name '*.slnx')
         
         if [[ -z $solution ]]; then

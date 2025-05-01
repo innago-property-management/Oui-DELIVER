@@ -12,10 +12,11 @@ on:
         required: true
         description: "Path to the ignored packages JSON file"
         type: string
-#    secrets: 
-#      githubToken:
-#        description: "Github token"
-#        required: true
+    secrets: 
+      githubToken:
+        description: "Github token - deprecated"
+        required: false
+        
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,10 +62,12 @@ jobs:
         run: |
           dotnet nuget add source \
             --name "github" \
-            --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
             --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN"
+            --password "$GHCR_TOKEN" \
+            "https://nuget.pkg.github.com/innago-property-management/index.json"
+          
           dotnet restore
+          
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
           
@@ -94,9 +97,10 @@ jobs:
         run: |
           dotnet nuget add source \
             --name "github" \
-            --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
             --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN"
+            --password "$GHCR_TOKEN" \
+            "https://nuget.pkg.github.com/innago-property-management/index.json"
+          
           PATH=/root/.dotnet/tools:$PATH
           dotnet tool install --global dotnet-outdated-tool
           
