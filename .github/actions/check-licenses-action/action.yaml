@@ -21,9 +21,17 @@ runs:
     - name: Check Licenses for each project
       shell: bash
       env:
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ secrets.ORG_GHCR_NUGET_TOKEN }}
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
+        dotnet nuget add source \
+          --name "github" \
+          --source "https://nuget.pkg.github.com/innago-property-management/index.json" \
+          --username "$GHCR_USER" \
+          --password "$GHCR_TOKEN" \
+          --non-interactive
         dotnet restore
         dotnet tool install --global nuget-license || continue
         PATH=/root/.dotnet/tools:$PATH
