@@ -58,6 +58,8 @@ jobs:
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.githubToken }}
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
+          NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
         run: |
           dotnet nuget add source \
             --name "github" \
@@ -93,6 +95,8 @@ jobs:
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.githubToken }}
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
+          NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
         shell: bash
         run: |
           dotnet nuget add source \
