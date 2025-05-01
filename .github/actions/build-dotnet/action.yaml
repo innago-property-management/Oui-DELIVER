@@ -32,7 +32,7 @@ runs:
         REPORTS_PATH: test/results
         TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
         GHCR_USER: ${{ github.actor }}
-        GHCR_TOKEN: ${{ secrets.githubToken }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
       run: |
         dotnet nuget add source \
           --name "github" \
