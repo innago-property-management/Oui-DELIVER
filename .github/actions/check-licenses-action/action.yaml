@@ -26,6 +26,7 @@ runs:
       env:
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ inputs.githubToken }}
+        NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
