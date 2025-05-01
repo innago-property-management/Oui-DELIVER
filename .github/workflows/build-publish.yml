@@ -85,7 +85,7 @@ jobs:
 #        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: innago-property-management/Oui-DELIVER/.github/actions/push-nuget-packages@main
         with:
-          githubToken: "${{ secrets.GITHUB_TOKEN }}"
+          pushToken: "${{ secrets.githubToken }}"
       - name: Generate SBOM
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: innago-property-management/Oui-DELIVER/.github/actions/generate-sbom-dotnet@main
