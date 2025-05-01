@@ -12,10 +12,10 @@ on:
         required: true
         description: "Path to the ignored packages JSON file"
         type: string
-    secrets: 
-      githubToken:
-        description: "Github token"
-        required: true
+#    secrets: 
+#      githubToken:
+#        description: "Github token"
+#        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -37,7 +37,7 @@ jobs:
       - name: GitLeaks
         shell: bash
         env: 
-          GITHUB_TOKEN: "${{ secrets.githubToken }}"
+          GITHUB_TOKEN: "${{ secrets.ORG_GHCR_NUGET_TOKEN }}"
         run: |
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
           WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
