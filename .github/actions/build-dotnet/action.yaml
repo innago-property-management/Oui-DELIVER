@@ -33,6 +33,8 @@ runs:
         TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ inputs.githubToken }}
+        GITHUB_TOKEN: ${{ secrets.githubToken }}
+        NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
       run: |
         dotnet nuget add source \
           --name "github" \
