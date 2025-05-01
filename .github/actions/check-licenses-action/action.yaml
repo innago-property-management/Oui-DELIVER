@@ -25,7 +25,7 @@ runs:
       shell: bash
       env:
         GHCR_USER: ${{ github.actor }}
-        GHCR_TOKEN: ${{ secrets.githubToken }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
         ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
         IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
       run: |
