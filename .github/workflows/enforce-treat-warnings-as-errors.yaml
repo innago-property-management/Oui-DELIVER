@@ -1,0 +1,39 @@
+name: Enforce TreatWarningsAsErrors
+
+on:
+  workflow_dispatch: 
+  workflow_call:
+
+jobs:
+  check_treat_warnings_as_errors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Find Non-Test/Example C# Projects
+        id: find_projects
+        run: |
+          find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0 -I {} echo "::set-output name=projects::{}"
+
+      - name: Check TreatWarningsAsErrors in Release Configuration
+        run: |
+          projects=$(echo "${{ steps.find_projects.outputs.projects }}")
+          if [ -z "$projects" ]; then
+            echo "No relevant C# projects found."
+            exit 0
+          fi
+          
+          violations=""
+          IFS=$'\n'
+          for project_file in $projects; do
+            if ! grep -q "<PropertyGroup Condition=\" '\\\$\\(Configuration\\)\\' == 'Release' \">\s*<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
+              violations="$violations\n- $project_file"
+            fi
+          done
+          
+          if [ -n "$violations" ]; then
+            echo "::error::The following non-test/example C# projects do not enforce TreatWarningsAsErrors in the Release configuration:${violations}"
+            exit 1
+          else
+            echo "All relevant C# projects enforce TreatWarningsAsErrors in the Release configuration."
+          fi
