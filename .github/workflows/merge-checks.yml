@@ -150,5 +150,5 @@ jobs:
           path: out
           overwrite: 'true'
   enforceWarningsAsErrors:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@main
         
