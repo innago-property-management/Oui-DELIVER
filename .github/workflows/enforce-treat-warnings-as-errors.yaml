@@ -13,7 +13,8 @@ jobs:
       - name: Find Non-Test/Example C# Projects
         id: find_projects
         run: |
-          find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0 -I {} echo "::set-output name=projects::{}"
+          projects=$(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0)
+          echo "projects=$projects" >> "$GITHUB_OUTPUT"
 
       - name: Check TreatWarningsAsErrors in Release Configuration
         run: |
