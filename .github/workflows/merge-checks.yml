@@ -150,8 +150,5 @@ jobs:
           path: out
           overwrite: 'true'
   enforceWarningsAsErrors:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enforce Warnings As Errors
-        id: enforce_warnings_as_errors
-        uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors@main
+        
