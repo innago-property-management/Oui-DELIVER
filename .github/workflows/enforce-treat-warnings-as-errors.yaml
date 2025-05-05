@@ -13,16 +13,9 @@ jobs:
 
       - name: Check TreatWarningsAsErrors in Release Configuration
         run: |
-          projects=$(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0)
-        
-          if [ -z "$projects" ]; then
-            echo "No relevant C# projects found."
-            exit 0
-          fi
-          
           violations=""
-          IFS=$'\n'
-          for project_file in $projects; do
+          
+          find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | while IFS= read -r -d $'\0' project_file; do        
             if ! grep -q "<PropertyGroup Condition=\" '\\\$\\(Configuration\\)\\' == 'Release' \">\s*<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
               violations="$violations\n- $project_file"
             fi
