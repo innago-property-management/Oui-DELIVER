@@ -7,18 +7,14 @@ on:
 jobs:
   check_treat_warnings_as_errors:
     runs-on: ubuntu-latest
+    name: Check TreatWarningsAsErrors in Release Configuration
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - name: Find Non-Test/Example C# Projects
-        id: find_projects
-        run: |
-          projects=$(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0)
-          echo "projects=$projects" >> "$GITHUB_OUTPUT"
-
       - name: Check TreatWarningsAsErrors in Release Configuration
         run: |
-          projects=$(echo "${{ steps.find_projects.outputs.projects }}")
+          projects=$(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | xargs -0)
+        
           if [ -z "$projects" ]; then
             echo "No relevant C# projects found."
             exit 0
