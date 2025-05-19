@@ -38,6 +38,10 @@ inputs:
   cosignPassword:
     required: true
     description: "Password for Cosign key"
+  buildArgs:
+    required: false
+    description: "Optional build arguments for Docker build (e.g., NUGET_SOURCE_URL=...)"
+    default: ''
 runs:
   using: "composite"
   steps:
@@ -79,6 +83,7 @@ runs:
           org.opencontainers.image.url=${{ inputs.repositoryUrl }}
           org.opencontainers.image.revision=${{ inputs.sha }}
           org.opencontainers.image.version=${{ inputs.version }}
+        build-args: ${{ inputs.buildArgs }}
     - name: sign container image
       run: |
         cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true

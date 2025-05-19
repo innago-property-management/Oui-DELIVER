@@ -22,6 +22,17 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      nugetSourceName:
+        required: false
+        description: "Name for the NuGet source (e.g., github)"
+        type: string
+        default: 'github'
+      nugetSourceUrl:
+        required: false
+        description: "URL of the NuGet source"
+        type: string
+        default: 'https://nuget.pkg.github.com/innago-property-management/index.json'
+
   workflow_call:
     inputs:
       imageName:
@@ -44,6 +55,17 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      nugetSourceName:
+        required: false
+        description: "Name for the NuGet source (e.g., github)"
+        type: string
+        default: 'github'
+      nugetSourceUrl:
+        required: false
+        description: "URL of the NuGet source"
+        type: string
+        default: 'https://nuget.pkg.github.com/innago-property-management/index.json'
+
     secrets:
       githubToken:
         description: "Github token"
@@ -111,6 +133,11 @@ jobs:
           sha: ${{ github.sha }}
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
+          buildArgs: |
+            NUGET_SOURCE_NAME: ${{ inputs.nugetSourceName }}
+            NUGET_SOURCE_URL: ${{ inputs.nugetSourceUrl }}
+            NUGET_USERNAME: ${{ github.actor }}
+            NUGET_PASSWORD: ${{ secrets.githubToken }}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
