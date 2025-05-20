@@ -134,10 +134,10 @@ jobs:
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
           buildArgs: |
-            NUGET_SOURCE_NAME: ${{ inputs.nugetSourceName }}
-            NUGET_SOURCE_URL: ${{ inputs.nugetSourceUrl }}
-            NUGET_USERNAME: ${{ github.actor }}
-            NUGET_PASSWORD: ${{ secrets.githubToken }}
+            NUGET_SOURCE_NAME=${{ inputs.nugetSourceName }}
+            NUGET_SOURCE_URL=${{ inputs.nugetSourceUrl }}
+            NUGET_USERNAME=${{ github.actor }}
+            NUGET_PASSWORD=${{ secrets.githubToken }}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
