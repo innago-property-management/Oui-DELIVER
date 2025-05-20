@@ -88,8 +88,7 @@ runs:
           org.opencontainers.image.revision=${{ inputs.sha }}
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
-        secrets: |
-          nuget_password=${{ inputs.password }}
+        secrets: ${{ inputs.secrets }}
     - name: sign container image
       run: |
         cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
