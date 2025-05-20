@@ -42,6 +42,10 @@ inputs:
     required: false
     description: "Build arguments for Docker build (e.g., NUGET_SOURCE_URL=...)"
     default: ''
+  secrets:
+    required: false # Set to 'true' if the NuGet password is always required
+    description: "Secrets to pass to the Docker build (e.g., nuget_password=...)"
+    default: '' # Provide a default empty string if not always required
 runs:
   using: "composite"
   steps:
@@ -84,8 +88,7 @@ runs:
           org.opencontainers.image.revision=${{ inputs.sha }}
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
-        secrets: |
-          nuget_password=${{ inputs.password }}
+        secrets: ${{ inputs.secrets }}
     - name: sign container image
       run: |
         cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true

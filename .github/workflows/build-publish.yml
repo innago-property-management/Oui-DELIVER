@@ -117,7 +117,6 @@ jobs:
             NUGET_SOURCE_NAME=github
             NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
             NUGET_USERNAME=${{ github.actor }}
-            NUGET_PASSWORD=${{ secrets.githubToken }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
       - name: Update ArgoCD
