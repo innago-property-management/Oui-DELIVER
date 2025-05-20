@@ -40,7 +40,7 @@ inputs:
     description: "Password for Cosign key"
   buildArgs:
     required: false
-    description: "Optional build arguments for Docker build (e.g., NUGET_SOURCE_URL=...)"
+    description: "Build arguments for Docker build"
     default: ''
 runs:
   using: "composite"

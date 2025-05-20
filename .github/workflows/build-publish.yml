@@ -22,16 +22,6 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
-      nugetSourceName:
-        required: false
-        description: "Name for the NuGet source (e.g., github)"
-        type: string
-        default: 'github'
-      nugetSourceUrl:
-        required: false
-        description: "URL of the NuGet source"
-        type: string
-        default: 'https://nuget.pkg.github.com/innago-property-management/index.json'
 
   workflow_call:
     inputs:
@@ -55,16 +45,6 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
-      nugetSourceName:
-        required: false
-        description: "Name for the NuGet source (e.g., github)"
-        type: string
-        default: 'github'
-      nugetSourceUrl:
-        required: false
-        description: "URL of the NuGet source"
-        type: string
-        default: 'https://nuget.pkg.github.com/innago-property-management/index.json'
 
     secrets:
       githubToken:
@@ -134,8 +114,8 @@ jobs:
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
           buildArgs: |
-            NUGET_SOURCE_NAME=${{ inputs.nugetSourceName }}
-            NUGET_SOURCE_URL=${{ inputs.nugetSourceUrl }}
+            NUGET_SOURCE_NAME=github
+            NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
             NUGET_USERNAME=${{ github.actor }}
             NUGET_PASSWORD=${{ secrets.githubToken }}
       - name: Update ArgoCD
