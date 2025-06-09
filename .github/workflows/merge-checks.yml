@@ -46,7 +46,7 @@ jobs:
           CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
           git config --global --add safe.directory "$WORK_DIR"
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
-          gitleaks detect --verbose --source . --log-level trace
+          gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   vulnerabilities:
     runs-on: ubuntu-latest
     timeout-minutes: 3
