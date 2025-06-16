@@ -64,6 +64,8 @@ concurrency:
 jobs:
   version:
     uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions: 
+      contents: read
   build:
     runs-on: ubuntu-latest
     permissions:

@@ -17,6 +17,9 @@ on:
         description: "Github token"
         required: true
 
+permissions: 
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -55,7 +58,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
-          node-version: lts/jod
+          node-version: lts/*
       - shell: bash
         name: vulnerable
         run: |
@@ -70,7 +73,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
         with:
-          node-version: lts/jod
+          node-version: lts/*
       - name: Install jq
         uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
       - name: Outdated Tool
