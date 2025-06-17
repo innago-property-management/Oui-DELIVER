@@ -46,6 +46,14 @@ inputs:
     required: false # Set to 'true' if the NuGet password is always required
     description: "Secrets to pass to the Docker build (e.g., nuget_password=...)"
     default: '' # Provide a default empty string if not always required
+  dockerfileContext:
+    required: false
+    default: '.' # Default to the repository root
+    description: "The build context for the Docker image. Relative to repository root."
+    dockerfilePath:
+      required: false
+      default: './Dockerfile' # Default to 'Dockerfile' at the root
+      description: "The path to the Dockerfile relative to the build context."
 runs:
   using: "composite"
   steps:
@@ -70,8 +78,8 @@ runs:
       with:
         push: true
         builder: ${{ steps.buildx.outputs.name }}
-        context: .
-        file: ./Dockerfile
+        context: ${{ inputs.dockerfileContext }}
+        file: ${{ inputs.dockerfilePath }}
         platforms: linux/amd64,linux/arm64
         tags: |
           ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}:${{ inputs.version }}
