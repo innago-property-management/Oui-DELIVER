@@ -45,6 +45,16 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      dockerfileContext:
+        required: false
+        description: "The build context for the Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      dockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: './Dockerfile'
 
     secrets:
       githubToken:
@@ -56,16 +66,7 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
-    dockerfileContext:
-      required: false
-      description: "The build context for the Docker image. Relative to repository root."
-      type: string
-      default: '.'
-    dockerfilePath:
-      required: false
-      description: "The path to the Dockerfile relative to the build context."
-      type: string
-      default: './Dockerfile'
+    
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -128,6 +129,8 @@ jobs:
             NUGET_USERNAME=${{ github.actor }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
+          dockerfileContext: ${{inputs.dockerfileContext}}
+          dockerfilePath: ${{inputs.dockerfilePath}}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
