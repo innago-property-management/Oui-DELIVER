@@ -56,7 +56,16 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
-
+    dockerfileContext:
+      required: false
+      description: "The build context for the Docker image. Relative to repository root."
+      type: string
+      default: '.'
+    dockerfilePath:
+      required: false
+      description: "The path to the Dockerfile relative to the build context."
+      type: string
+      default: './Dockerfile'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
