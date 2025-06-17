@@ -50,10 +50,10 @@ inputs:
     required: false
     default: '.' # Default to the repository root
     description: "The build context for the Docker image. Relative to repository root."
-    dockerfilePath:
-      required: false
-      default: './Dockerfile' # Default to 'Dockerfile' at the root
-      description: "The path to the Dockerfile relative to the build context."
+  dockerfilePath:
+    required: false
+    default: './Dockerfile' # Default to 'Dockerfile' at the root
+    description: "The path to the Dockerfile relative to the build context."
 runs:
   using: "composite"
   steps:
