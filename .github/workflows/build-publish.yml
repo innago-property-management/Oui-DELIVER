@@ -45,16 +45,16 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
-      dockerfileContext:
+      migrationsDockerfileContext:
         required: false
-        description: "The build context for the Docker image. Relative to repository root."
+        description: "The build context for the migrations Docker image. Relative to repository root."
         type: string
         default: '.'
-      dockerfilePath:
+      migrationsDockerfilePath:
         required: false
         description: "The path to the Dockerfile relative to the build context."
         type: string
-        default: './Dockerfile'
+        default: ''
 
     secrets:
       githubToken:
@@ -129,8 +129,8 @@ jobs:
             NUGET_USERNAME=${{ github.actor }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
-          dockerfileContext: ${{inputs.dockerfileContext}}
-          dockerfilePath: ${{inputs.dockerfilePath}}
+          migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
+          migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
