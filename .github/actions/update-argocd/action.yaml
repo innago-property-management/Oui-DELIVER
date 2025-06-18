@@ -59,16 +59,11 @@ runs:
         fileName="value-overrides-${environment}.yaml"
         branchName="automated/${folderName}-${tag}"
         
-        if git ls-remote --heads origin ${branchName}; then
-          echo "${branchName} already exists -- nothing to do"
-          exit 0
-        fi
-        
         git checkout -b "${branchName}"
         fullName="helm-values/${folderName}/${fileName}"
         fullName=$(realpath "${fullName}")
         yq --inplace ".image.tag=\"${tag}\"" "${fullName}"
         yq --inplace ".migrationJob.image.tag=\"${tag}\"" "${fullName}"
         git add "${fullName}"
-        git commit --message="Update ${environment} to version ${tag}"
+        git commit --message="Update ${environment} to version ${tag}" --allow-empty
         git push --set-upstream origin "${branchName}"
