@@ -5,16 +5,6 @@ on:
       version:
         description: "Version"
         value: ${{ jobs.version.outputs.version }}
-  
-  push:
-    branches: [ "main" ]
-    tags: [ "*" ]
-  pull_request:
-    branches: [ "main" ]
-    
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   version:
