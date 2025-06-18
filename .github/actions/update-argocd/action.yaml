@@ -59,7 +59,7 @@ runs:
         fileName="value-overrides-${environment}.yaml"
         branchName="automated/${folderName}-${tag}"
         
-        if git show-ref --verify --quiet "refs/heads/${branchName}"; then
+        if git ls-remote --heads origin ${branchName}; then
           echo "${branchName} already exists -- nothing to do"
           exit 0
         fi
