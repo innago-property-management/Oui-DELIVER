@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
       - name: Get Latest Tag
         id: get_latest_tag
+        env:
+          BRANCH_RAW: ${{ github.event.pull_request.head.ref }}
         run: |
           git fetch --tags --prune --force
           latest_tag=$(git tag -l --sort=v:refname | tail -n 1)
@@ -38,14 +40,12 @@ jobs:
           echo "TAG=$TAG"
           if [ -z "$TAG" ]; then
             BRANCH=$(git branch --show-current)
-            echo "Current branch: $BRANCH"
             if [ "$BRANCH" == "main" ]; then
               echo "rc"
               export VERSION="$NEW_TAG-rc-${{ github.run_number }}"
               export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
             else
               echo "feat"
-              BRANCH_RAW=${{ github.ref_name }}
               echo "Current branch (raw): $BRANCH_RAW"
               BRANCH_SANITIZED=$(echo "$BRANCH_RAW" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9\/-]+/-/g' | sed -E 's/^-+|-+$//g' | sed -E 's/\/+/-/g')
               echo "Current branch (sanitized): $BRANCH_SANITIZED"
