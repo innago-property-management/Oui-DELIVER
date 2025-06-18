@@ -58,6 +58,12 @@ runs:
 
         fileName="value-overrides-${environment}.yaml"
         branchName="automated/${folderName}-${tag}"
+        
+        if git show-ref --verify --quiet "refs/heads/${branchName}"; then
+          echo "${branchName} already exists -- nothing to do"
+          exit 0
+        fi
+        
         git checkout -b "${branchName}"
         fullName="helm-values/${folderName}/${fileName}"
         fullName=$(realpath "${fullName}")
