@@ -46,14 +46,14 @@ inputs:
     required: false # Set to 'true' if the NuGet password is always required
     description: "Secrets to pass to the Docker build (e.g., nuget_password=...)"
     default: '' # Provide a default empty string if not always required
-  dockerfileContext:
+  migrationsDockerfileContext:
     required: false
-    default: '.' # Default to the repository root
-    description: "The build context for the Docker image. Relative to repository root."
-  dockerfilePath:
+    default: '.'
+    description: "The build context for the migrations Docker image. Relative to repository root."
+  migrationsDockerfilePath:
     required: false
-    default: './Dockerfile' # Default to 'Dockerfile' at the root
-    description: "The path to the Dockerfile relative to the build context."
+    default: ''
+    description: "The path to the migrations Dockerfile relative to the build context. Leave unset to skip."
 runs:
   using: "composite"
   steps:
@@ -66,9 +66,10 @@ runs:
         username: ${{ inputs.username }}
         password: ${{ inputs.password }}
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      id: buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
     - name: Publish container image
       id: publish
       uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # 6.15.0
@@ -78,8 +79,8 @@ runs:
       with:
         push: true
         builder: ${{ steps.buildx.outputs.name }}
-        context: ${{ inputs.dockerfileContext }}
-        file: ${{ inputs.dockerfilePath }}
+        context: .
+        file: ./Dockerfile
         platforms: linux/amd64,linux/arm64
         tags: |
           ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}:${{ inputs.version }}
@@ -97,8 +98,42 @@ runs:
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
+    - name: Publish migrations image
+      id: publish-migrations
+      if: ${{ inputs.migrationsDockerfilePath && (trim(inputs.migrationsDockerfilePath) != '') }}
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # 6.15.0
+      env:
+        VERSION: ${{ inputs.version }}
+        IMAGE_NAME: ${{ inputs.imageName }}-migrations
+      with:
+        push: true
+        builder: ${{ steps.buildx.outputs.name }}
+        context: ${{ inputs.migrationsDockerfileContext }}
+        file: ${{ inputs.migrationsDockerfilePath }}
+        platforms: linux/amd64,linux/arm64
+        tags: |
+          ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}-migrations:${{ inputs.version }}
+        labels: |
+          org.opencontainers.image.title=${{ inputs.imageTitle }}-migrations
+          org.opencontainers.image.description=${{ inputs.imageDescription }}
+          org.opencontainers.image.url=${{ inputs.repositoryUrl }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+          org.opencontainers.image.version=${{ inputs.version }}
+        annotations: |
+          org.opencontainers.image.title=${{ inputs.imageTitle }}-migrations
+          org.opencontainers.image.description=${{ inputs.imageDescription }}
+          org.opencontainers.image.url=${{ inputs.repositoryUrl }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+          org.opencontainers.image.version=${{ inputs.version }}
+        build-args: ${{ inputs.buildArgs }}
+        secrets: ${{ inputs.secrets }}
+      
     - name: sign container image
       run: |
+        if [ -z "${{ env.DIGEST }}" ]; then
+          echo "ERROR: Image digest is not set. Skipping cosign sign step."
+          exit 1
+        fi
         cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
       shell: bash
       env:
@@ -106,3 +141,18 @@ runs:
         COSIGN_PASSWORD: ${{inputs.cosignPassword}}
         IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}"
         DIGEST: ${{ steps.publish.outputs.digest }}
+      
+    - name: sign migrations image
+      if: "${{ inputs.migrationsDockerfilePath }}" != ''
+      run: |
+        if [ -z "${{ env.DIGEST }}" ]; then
+          echo "ERROR: Image digest is not set. Skipping cosign sign step."
+          exit 1
+        fi
+        cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
+      shell: bash
+      env:
+        COSIGN_KEY: ${{inputs.cosignKey}}
+        COSIGN_PASSWORD: ${{inputs.cosignPassword}}
+        IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}-migrations"
+        DIGEST: ${{ steps.publish-migrations.outputs.digest }}
