@@ -5,6 +5,16 @@ on:
       version:
         description: "Version"
         value: ${{ jobs.version.outputs.version }}
+  
+  push:
+    branches: [ "main" ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ "main" ]
+    
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   version:
@@ -45,7 +55,7 @@ jobs:
               export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
             else
               echo "feat"
-              BRANCH_RAW=$(git rev-parse --abbrev-ref HEAD)
+              BRANCH_RAW=${{ github.ref_name }}
               echo "Current branch (raw): $BRANCH_RAW"
               BRANCH_SANITIZED=$(echo "$BRANCH_RAW" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9\/-]+/-/g' | sed -E 's/^-+|-+$//g' | sed -E 's/\/+/-/g')
               echo "Current branch (sanitized): $BRANCH_SANITIZED"
