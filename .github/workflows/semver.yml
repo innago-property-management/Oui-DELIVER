@@ -17,7 +17,7 @@ jobs:
       - name: Get Latest Tag
         id: get_latest_tag
         run: |
-          git fetch
+          git fetch --tags --prune --force
           latest_tag=$(git tag -l --sort=v:refname | tail -n 1)
           latest_tag=${latest_tag:-0.0.1}
           echo "current version is: $latest_tag"
@@ -44,7 +44,11 @@ jobs:
               export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
             else
               echo "feat"
-              export VERSION="$NEW_TAG-feat-${{ github.run_number }}"
+              BRANCH_RAW=$(git rev-parse --abbrev-ref HEAD)
+              echo "Current branch (raw): $BRANCH_RAW"
+              BRANCH_SANITIZED=$(echo "$BRANCH_RAW" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9\/-]+/-/g' | sed -E 's/^-+|-+$//g' | sed -E 's/\/+/-/g')
+              echo "Current branch (sanitized): $BRANCH_SANITIZED"
+              export VERSION="$NEW_TAG-feat-${BRANCH_SANITIZED}-${{ github.run_number }}"
               export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
             fi
           else
