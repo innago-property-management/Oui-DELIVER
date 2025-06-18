@@ -38,6 +38,7 @@ jobs:
           echo "TAG=$TAG"
           if [ -z "$TAG" ]; then
             BRANCH=$(git branch --show-current)
+            echo "Current branch: $BRANCH"
             if [ "$BRANCH" == "main" ]; then
               echo "rc"
               export VERSION="$NEW_TAG-rc-${{ github.run_number }}"
