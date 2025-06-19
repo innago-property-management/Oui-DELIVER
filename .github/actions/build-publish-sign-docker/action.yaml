@@ -100,7 +100,7 @@ runs:
         secrets: ${{ inputs.secrets }}
     - name: Publish migrations image
       id: publish-migrations
-      if: ${{ inputs.migrationsDockerfilePath && (trim(inputs.migrationsDockerfilePath) != '') }}
+      if: ${{ inputs.migrationsDockerfilePath && (inputs.migrationsDockerfilePath) != '' }}
       uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # 6.15.0
       env:
         VERSION: ${{ inputs.version }}
@@ -143,7 +143,7 @@ runs:
         DIGEST: ${{ steps.publish.outputs.digest }}
       
     - name: sign migrations image
-      if: "${{ inputs.migrationsDockerfilePath }}" != ''
+      if: ${{ inputs.migrationsDockerfilePath != '' }}
       run: |
         if [ -z "${{ env.DIGEST }}" ]; then
           echo "ERROR: Image digest is not set. Skipping cosign sign step."
