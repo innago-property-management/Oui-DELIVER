@@ -46,7 +46,7 @@ runs:
         folderName=$(echo $folderName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         repoName=$(echo $repoName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          environment="stage"
+          environment="pre"
         elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc-[0-9]+$ ]]; then
           environment="qa"
         elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-.* ]]; then
