@@ -93,7 +93,7 @@ jobs:
         with:
           dotnet-version: '9.x'
       - name: Install jq
-        uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
       - name: Outdated Tool
         env:
           GHCR_USER: ${{ github.actor }}
