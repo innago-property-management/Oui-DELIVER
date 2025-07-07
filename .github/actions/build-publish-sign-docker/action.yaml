@@ -129,8 +129,8 @@ runs:
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
-        cache-from: type=gha, scope=${{ github.repository }}
-        cache-to: type=gha, mode=max, scope=${{ github.repository }}
+        cache-from: type=gha, scope=${{ github.repository }}-migrations
+        cache-to: type=gha, mode=max, scope=${{ github.repository }}-migrations
       
     - name: sign container image
       run: |
