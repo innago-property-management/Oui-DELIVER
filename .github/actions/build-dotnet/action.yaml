@@ -16,15 +16,19 @@ inputs:
     required: true
     description: "Test project discovery is from the solution if this is not set."
     default: "."
+  dotnet-version:
+    required: false
+    description: ".NET SDK version(s) to install - a multi-line string"
+    default: |
+      8.x
+      9.x
 runs:
   using: "composite"
   steps:
     - name: Setup .NET
       uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
       with:
-        dotnet-version: |
-          8.x
-          9.x
+        dotnet-version: ${{ inputs.dotnet-version }}
     - name: Build
       shell: bash
       env:
