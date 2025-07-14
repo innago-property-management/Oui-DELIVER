@@ -25,10 +25,10 @@ permissions:
   attestations: write
 
 jobs:
-  generate-provenance:
+  generate-hashes:
     runs-on: ubuntu-latest
     outputs: 
-      slsa_artifact: ${{ steps.slsa.outputs.provenance-name }}
+      hashes: ${{ steps.hashes.outputs.hashes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -44,11 +44,10 @@ jobs:
           artifact_path: ${{ inputs.artifact_path }}
         run: |
           shopt -s nullglob
-          echo "HASHES=$(sha256sum .github/*.y* .github/**/*.y* ${artifact_path}/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
-
-      - name: Generate SLSA Provenance
-        id: slsa
-        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
-        with:
-          base64-subjects: ${{ steps.hashes.outputs.HASHES }}
-          private-repository: true
+          echo "hashes=$(sha256sum .github/*.y* .github/**/*.y* ${artifact_path}/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+  generate-provenance:
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    needs: generate-hashes
+    with:
+      base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
+      private-repository: true
