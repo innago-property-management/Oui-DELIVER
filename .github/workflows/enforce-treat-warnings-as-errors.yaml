@@ -4,6 +4,9 @@ on:
   workflow_dispatch: 
   workflow_call:
 
+permissions: 
+  contents: read
+  
 jobs:
   check_treat_warnings_as_errors:
     runs-on: ubuntu-latest
