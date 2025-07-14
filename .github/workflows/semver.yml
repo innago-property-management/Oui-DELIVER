@@ -17,7 +17,7 @@ jobs:
       - name: Get Latest Tag
         id: get_latest_tag
         env:
-          BRANCH_RAW: ${{ github.event.pull_request.head.ref }}
+          BRANCH_RAW: ${{ github.event.pull_request.head.ref || github.head_ref || github.ref_name }}
         run: |
           git fetch --tags --prune --force
           latest_tag=$(git tag -l --sort=v:refname | tail -n 1)
