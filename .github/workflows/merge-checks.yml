@@ -17,6 +17,10 @@ on:
         description: "Github token"
         required: true
 
+permissions: 
+  contents: read
+  packages: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
