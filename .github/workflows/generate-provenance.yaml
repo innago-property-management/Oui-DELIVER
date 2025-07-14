@@ -48,6 +48,11 @@ jobs:
   generate-provenance:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     needs: generate-hashes
+    permissions: 
+      attestations: write
+      contents: read
+      id-token: write
+      actions: read
     with:
       base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
       private-repository: true
