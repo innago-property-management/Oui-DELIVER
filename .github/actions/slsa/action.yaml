@@ -1,0 +1,22 @@
+description: "Generates SLSA provenance"
+
+inputs:
+  artifact_path:
+    required: true
+    description: "path to build artifacts"
+
+runs:
+  using: composite
+  steps:
+    - name: slsa-hashes
+      id: hashes
+      shell: bash
+      env:
+        artifact_path: ${{ inputs.artifact_path }}
+      run: |
+        shopt -s nullglob
+        echo "HASHES=$(sha256sum .github/*.y* .github/**/*.y* ${artifact_path}/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+    - name: slsa-generation
+      uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+      with: 
+        base64-subjects: ${{ steps.hashes.outputs.HASHES }}
