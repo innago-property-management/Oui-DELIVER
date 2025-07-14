@@ -14,10 +14,9 @@ runs:
       env:
         artifact_path: ${{ inputs.artifact_path }}
       run: |
-        echo "HASHES=$(sha256sum .github/**/*.y* ${artifact_path}/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+        shopt -s nullglob
+        echo "HASHES=$(sha256sum .github/*.y* .github/**/*.y* ${artifact_path}/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
     - name: slsa-generation
       uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
-      env:
-        HASHES: ${{ env.HASHES }}
       with: 
-        base64-subjects: ${HASHES}
+        base64-subjects: ${{ steps.hashes.outputs.HASHES }}
