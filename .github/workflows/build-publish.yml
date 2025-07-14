@@ -115,7 +115,7 @@ jobs:
         uses: innago-property-management/Oui-DELIVER/.github/actions/generate-sbom-dotnet@main
       - name: Generate Build Provenance
         if: inputs.slsa # github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: innago-property-management/Oui-DELIVER/.github/actions/slsa@main
+        uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yml@main
         with:
           artifact_path: out
       - name: Upload SBOMs
