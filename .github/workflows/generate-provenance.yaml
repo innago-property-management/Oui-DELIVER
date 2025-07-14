@@ -19,7 +19,7 @@ jobs:
   generate-provenance:
     runs-on: ubuntu-latest
     outputs: 
-      slas_artifact: ${{ steps.slsa.outputs.provenance-name }}
+      slsa_artifact: ${{ steps.slsa.outputs.provenance-name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
