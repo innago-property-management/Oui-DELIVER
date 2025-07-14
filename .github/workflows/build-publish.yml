@@ -160,6 +160,6 @@ jobs:
       attestations: write
       id-token: write
       actions: read
-      contents: read
+      contents: write
     with:
       artifact_path: out
