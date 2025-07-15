@@ -76,10 +76,14 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
-    
+        
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+  
+permissions:
+  contents: write
+  actions: read
   
 jobs:
   version:
