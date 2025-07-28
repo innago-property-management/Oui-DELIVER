@@ -3,19 +3,16 @@ name: merge-checks
 on:
   workflow_dispatch:
   workflow_call:
-    inputs: 
-      allowed_licenses_path:
-        required: true
-        description: "Path to the allowed licenses JSON file"
-        type: string
-      ignored_packages_path:
-        required: true
-        description: "Path to the ignored packages JSON file"
-        type: string
     secrets: 
-      githubToken:
-        description: "Github token"
+      GITHUB_CLASSIC_TOKEN:
         required: true
+        description: "Github token for organization package resolve"
+      CHROMATIC_PROJECT_TOKEN:
+        required: true
+        description: "Chromatic token for storybook publish"
+      NODE_VERSION:
+        required: true
+        description: "Node version to resolve node/npm dependency"
 
 permissions: 
   contents: read
@@ -50,21 +47,59 @@ jobs:
           git config --global --add safe.directory "$WORK_DIR"
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
-  vulnerabilities:
+  format-check:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-npmrc
         with:
-          node-version: lts/*
-      - shell: bash
-        name: vulnerable
-        run: |
-          npm ci
-          npm audit --audit-level=high 2>&1 | tee vuln.log
-          cat vuln.log >> $GITHUB_STEP_SUMMARY
+          node-version: ${{ secrets.NODE_VERSION }}
+      - run: npm ci --legacy-peer-deps
+      - run: npm run format:check
+
+  lint-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-npmrc
+        with:
+          node-version: ${{ secrets.NODE_VERSION }}
+      - run: npm ci --legacy-peer-deps
+      - run: npm run lint
+
+  chromatic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-npmrc
+        with:
+          fetch-depth: 0 # Required for Chromatic
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ secrets.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic -- --project-token=${{ secrets.CHROMATIC_PROJECT_TOKEN }} --only-changed
+
+  vulnerability-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-npmrc
+        with:
+          node-version: ${{ secrets.NODE_VERSION }}
+      - run: npm ci --legacy-peer-deps
+      - run: |
+          npm audit --json --audit-level=high > audit.json || true
+          node .github/scripts/check-audits.js
+
   outdated:
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -81,3 +116,32 @@ jobs:
         run: |
           npm ci
           npm outdated
+
+  run-tests:
+    needs: [format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-npmrc
+        with:
+          node-version: ${{ secrets.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run test:ci
+
+  run-build:
+    if: github.event_name == 'pull_request'
+    needs: [format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-npmrc
+        with:
+          node-version: ${{ secrets.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - run: npm run build -- --configuration production
