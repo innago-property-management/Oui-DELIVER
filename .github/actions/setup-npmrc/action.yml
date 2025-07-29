@@ -1,0 +1,10 @@
+name: Setup .npmrc for GitHub Packages
+description: Add GitHub Package Registry auth token to .npmrc
+
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_CLASSIC_TOKEN }}" >> ~/.npmrc
+        echo "@innago-property-management:registry=https://npm.pkg.github.com" >> ~/.npmrc
+      shell: bash
