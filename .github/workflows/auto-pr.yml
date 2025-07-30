@@ -16,8 +16,14 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e #v2.0.6        
+        with:
+          app-id: ${{ vars.AUTO_PR_APP_ID }}
+          private-key: ${{ secrets.AUTO_PR_APP_PRIVATE_KEY }}
       - name: pull-request
         uses: diillson/auto-pull-request@4cf50b3681cd76250f37841466e61e514a377064 #v1.0.1
         with:
           destination_branch: 'main'
-          github_token: '${{ secrets.token }}'
+          github_token: ${{ steps.app_token.outputs.token }}
