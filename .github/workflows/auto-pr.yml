@@ -20,7 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
       - name: Create GitHub App Token
-        if: secrets.auto_pr_private_key != ''
+        env:
+          auto_pr_private_key: ${{ secrets.auto_pr_private_key }}
+        if: env.auto_pr_private_key != ''
         id: app_token
         uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e #v2.0.6        
         with:
