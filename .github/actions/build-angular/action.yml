@@ -1,0 +1,19 @@
+name: "Build Node"
+description: "Builds a node app"
+inputs:
+  node_version:
+    required: true
+    description: "Node version to resolve node/npm dependency"
+    
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: ${{ inputs.node_version }}
+    - name: Build
+      id: build
+      shell: bash
+    - run: npm ci --legacy-peer-deps
+    - run: npm run build
