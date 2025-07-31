@@ -152,9 +152,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ inputs.npm_token }}
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps
-      - run: npm run build
