@@ -1,4 +1,4 @@
-name: "Build Node"
+name: "Build Angular"
 description: "Builds a node app"
 inputs:
   node_version:
