@@ -45,10 +45,6 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
-      npm_token:
-        required: true
-        description: "Github token for organization package resolve"
-        type: string
       node_version:
         required: true
         description: "Node version to resolve node/npm dependency"
@@ -64,6 +60,9 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
+      npm_token:
+        required: true
+        description: "Github token for organization package resolve"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -89,7 +88,7 @@ jobs:
       - name: Build
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
           node_version: "${{ inputs.node_version }}"
       - name: Upload dist/ folder
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
