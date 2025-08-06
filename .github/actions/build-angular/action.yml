@@ -12,8 +12,11 @@ runs:
       uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
       with:
         node-version: ${{ inputs.node_version }}
-    - name: Build
-      id: build
+    
+    - name: Install dependencies
       shell: bash
-    - run: npm ci --legacy-peer-deps
-    - run: npm run build
+      run: npm ci --legacy-peer-deps
+    
+    - name: Build
+      shell: bash
+      run: npm run build
