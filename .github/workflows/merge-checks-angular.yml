@@ -3,15 +3,7 @@ name: merge-checks
 on:
   workflow_dispatch:
   workflow_call:
-    inputs: 
-      npm_token:
-        required: true
-        description: "Github token for organization package resolve"
-        type: string
-      chromatic_token:
-        required: true
-        description: "Chromatic token for storybook publish"
-        type: string
+    inputs:
       node_version:
         required: true
         description: "Node version to resolve node/npm dependency"
@@ -19,7 +11,13 @@ on:
     secrets: 
       githubToken:
         description: "Github token"
+        required: true 
+      npm_token:
         required: true
+        description: "Github token for organization package resolve"
+      chromatic_token:
+        required: true
+        description: "Chromatic token for storybook publish"
 
 permissions: 
   contents: read
@@ -63,7 +61,7 @@ jobs:
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: npm run format:check
 
@@ -76,7 +74,7 @@ jobs:
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
@@ -91,10 +89,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
           cache: 'npm'
       - run: npm ci --legacy-peer-deps
-      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic -- --project-token=${{ inputs.chromatic_token }} --only-changed
+      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic -- --project-token=${{ secrets.chromatic_token }} --only-changed
 
   vulnerability-check:
     runs-on: ubuntu-latest
@@ -105,7 +103,7 @@ jobs:
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: |
           npm audit --json --audit-level=high > audit.json || true
@@ -138,7 +136,7 @@ jobs:
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
           cache: 'npm'
       - run: npm ci --legacy-peer-deps
       - run: NODE_OPTIONS=--max-old-space-size=8192 npm run test:ci
@@ -155,5 +153,5 @@ jobs:
       - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ inputs.npm_token }}
+          npm_token: ${{ secrets.npm_token }}
           cache: 'npm'
