@@ -24,7 +24,7 @@ jobs:
           auto_pr_private_key: ${{ secrets.auto_pr_private_key }}
         if: env.auto_pr_private_key != ''
         id: app_token
-        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e #v2.0.6        
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b #v2.1.1
         with:
           app-id: ${{ vars.AUTO_PR_APP_ID }}
           private-key: ${{ secrets.auto_pr_private_key }}
