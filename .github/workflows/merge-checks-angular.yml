@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           npm ci --legacy-peer-deps
-          npm outdated
+          npm run outdated:check
 
   run-tests:
     needs: [format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
