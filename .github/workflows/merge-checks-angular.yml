@@ -94,7 +94,7 @@ jobs:
           node-version: ${{ inputs.node_version }}
           cache: 'npm'
       - run: npm ci --legacy-peer-deps
-      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic --storybook-build-dir=storybook-static --project-token=${{ secrets.chromatic_token }} --only-changed
+      - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic -- --project-token=${{ secrets.chromatic_token }} --only-changed
 
   vulnerability-check:
     runs-on: ubuntu-latest
