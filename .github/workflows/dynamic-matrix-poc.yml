@@ -22,7 +22,7 @@ jobs:
           echo "${FILES}"
           echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
       - name: Upload Array Output without matrix
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           FILES: ${{ env.FILES }}
         with:
