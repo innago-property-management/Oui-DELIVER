@@ -34,4 +34,12 @@ runs:
       shell: bash
       run: |
         python -m build
+    
+    - name: Free disk space (after build & deps install)
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android \
+          /opt/ghc \
+          /usr/share/dotnet \
+          /usr/local/share/boost
 
