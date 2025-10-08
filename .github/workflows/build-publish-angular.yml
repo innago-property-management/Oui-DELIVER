@@ -83,6 +83,15 @@ jobs:
       pull-requests: write
     needs: version
     steps:
+      - name: Checkout
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/setup-node@v3
+        with:
+          node-version: "${{ inputs.node_version }}"
       - name: Clean & Install Dependencies
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
