@@ -96,7 +96,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         run: |
           rm -rf node_modules package-lock.json  # Remove old node_modules & lock file
-          npm install 
+          npm install --legacy-peer-deps
       - name: UI Build
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
       - name: Build
