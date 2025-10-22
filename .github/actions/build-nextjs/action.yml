@@ -27,6 +27,17 @@ runs:
       uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
       with:
         node-version: ${{ inputs.node_version }}
+        cache: 'npm'
+
+    - name: Cache Next.js build
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # 4.2.3
+      with:
+        path: |
+          .next/cache
+        key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+        restore-keys: |
+          ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+          ${{ runner.os }}-nextjs-
 
     - name: Install dependencies
       shell: bash
