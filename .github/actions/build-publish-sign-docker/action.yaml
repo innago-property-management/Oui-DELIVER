@@ -54,6 +54,10 @@ inputs:
     required: false
     default: ''
     description: "The path to the migrations Dockerfile relative to the build context. Leave unset to skip."
+  platforms:
+    required: false
+    default: 'linux/amd64,linux/arm64'
+    description: "Target platforms for the Docker build (e.g., 'linux/amd64,linux/arm64' or 'linux/arm64')"
 runs:
   using: "composite"
   steps:
@@ -81,7 +85,7 @@ runs:
         builder: ${{ steps.buildx.outputs.name }}
         context: .
         file: ./Dockerfile
-        platforms: linux/amd64,linux/arm64
+        platforms: ${{ inputs.platforms }}
         tags: |
           ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}:${{ inputs.version }}
         labels: |
@@ -112,7 +116,7 @@ runs:
         builder: ${{ steps.buildx.outputs.name }}
         context: ${{ inputs.migrationsDockerfileContext }}
         file: ${{ inputs.migrationsDockerfilePath }}
-        platforms: linux/amd64,linux/arm64
+        platforms: ${{ inputs.platforms }}
         tags: |
           ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}-migrations:${{ inputs.version }}
         labels: |
