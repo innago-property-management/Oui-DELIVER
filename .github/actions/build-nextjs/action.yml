@@ -1,0 +1,50 @@
+name: "Build Next.js"
+description: "Builds a Next.js application"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  node_version:
+    required: false
+    description: "Node version to use for build"
+    default: '20'
+  githubToken:
+    required: true
+    description: "Github Token for authentication"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  testProjectPath:
+    required: false
+    description: "Test project path"
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    - name: Install dependencies
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+      run: npm ci
+
+    - name: Run linting
+      shell: bash
+      run: npm run lint
+
+    - name: Run type check
+      shell: bash
+      run: npm run type-check
+
+    - name: Build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        NODE_OPTIONS: --max-old-space-size=8192
+      run: npm run build

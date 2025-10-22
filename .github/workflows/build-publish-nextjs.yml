@@ -12,6 +12,11 @@ on:
         description: "ArgoCD repo name. Omit if no image."
         type: string
         default: ''
+      node_version:
+        required: false
+        description: "Node version to use for build"
+        type: string
+        default: '20'
       minimumCoverage:
         required: false
         description: "Minimum code coverage percentage"
@@ -50,6 +55,11 @@ on:
         description: "ArgoCD repo name. Omit if no image."
         type: string
         default: ''
+      node_version:
+        required: false
+        description: "Node version to use for build"
+        type: string
+        default: '20'
       minimumCoverage:
         required: false
         description: "Minimum code coverage percentage"
@@ -118,6 +128,7 @@ jobs:
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-nextjs@main
         with:
           version: ${{ needs.version.outputs.version }}
+          node_version: "${{ inputs.node_version }}"
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
           minimumCoverage: "${{ inputs.minimumCoverage }}"
           testProjectPath: "${{ inputs.testProjectPath }}"
@@ -135,6 +146,7 @@ jobs:
         with:
           path: out
           overwrite: 'true'
+          name: 'build-artifact'
 
       - name: Publish Container Image
         if: inputs.imageName != ''
