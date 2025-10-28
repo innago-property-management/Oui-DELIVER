@@ -1,0 +1,65 @@
+name: Deployment Risk Assessment
+
+on:
+#  pull_request:
+#    types: [opened, synchronize, reopened]
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to assess'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  assess-deployment-risk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git diff analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Load workflow client skill
+        id: skill
+        run: |
+          SKILL_CONTENT=$(cat .github/skills/deployment-risk-workflow-client/SKILL.md)
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code Risk Assessment
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}"]}}}'
+          prompt: |
+            Assess the deployment risk for this pull request and post a comprehensive comment.
+
+            **PR Context:**
+            - Repository: ${{ github.repository }}
+            - PR Number: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+            - Base Branch: ${{ github.base_ref || 'main' }}
+            - Head Branch: ${{ github.head_ref }}
+            - Author: ${{ github.event.pull_request.user.login }}
+            - Title: ${{ github.event.pull_request.title }}
+
+            **Your Task:**
+            1. Use the `start_risk_assessment` tool with the PR context above
+            2. Poll `get_risk_assessment` until the assessment is complete (max 5 minutes)
+            3. Format the results as a comprehensive PR comment following the skill template
+            4. Post the comment using the GitHub API
+
