@@ -1,8 +1,8 @@
 name: Deployment Risk Assessment
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+#  pull_request:
+#    types: [opened, synchronize, reopened]
   # Allow manual trigger for testing
   workflow_dispatch:
     inputs:
