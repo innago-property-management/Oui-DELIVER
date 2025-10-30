@@ -49,6 +49,6 @@ jobs:
       anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
       mcpUrl: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
       githubToken: ${{ secrets.GITHUB_TOKEN }}
-      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}
+      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}
 
 
