@@ -22,7 +22,7 @@ on:
         required: true
       DEPLOYMENT_RISK_MCP_URL:
         required: true
-      GITHUB_TOKEN:
+      TOKEN:
         required: true
 
 permissions:
@@ -72,7 +72,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.TOKEN }}
           claude_args: |
             --system-prompt "${{ steps.skill.outputs.skill_content }}"
             --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}"]}}}'
