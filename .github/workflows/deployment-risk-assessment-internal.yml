@@ -44,8 +44,8 @@ jobs:
     name: Assess Deployment Risk
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
     with:
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number }}
-      base_branch: ${{ inputs.base_branch || github.event.pull_request.base.ref }}
+      pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
+      base_branch: ${{ github.event.pull_request.base.ref || inputs.base_branch }}
     secrets:
       anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
       mcpUrl: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
