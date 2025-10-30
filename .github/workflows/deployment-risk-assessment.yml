@@ -22,6 +22,8 @@ on:
         required: true
       DEPLOYMENT_RISK_MCP_URL:
         required: true
+      TOKEN:
+        required: true
 
 permissions:
   contents: read
