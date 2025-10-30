@@ -18,14 +18,16 @@ on:
         default: ''
         description: 'Additional requirements or constraints to add to the skill'
     secrets:
-      ANTHROPIC_KEY:
+      anthropicKey:
         required: true
-      DEPLOYMENT_RISK_MCP_URL:
+      mcpUrl:
         required: true
-      TOKEN:
+        description: 'URL of the MCP risk assessment service.'
+      githubToken:
         required: true
-      DEPLOYMENT_RISK_WAF_KEY:
+      wafApiKey:
         required: true
+        description: 'x-api-key to allow passage through WAF'
 
 permissions:
   contents: read
@@ -58,7 +60,7 @@ jobs:
 
       - name: Check MCP risk assessment endpoint
         run: |
-          curl -sf --header "x-api-key: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}" "${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health" || \
+          curl -sf --header "x-api-key: ${{ secrets.wafApiKey }}" "${{ secrets.mcpUrl }}/health" || \
             (echo "::error::Cannot reach MCP risk assessment service. Check secrets and endpoint." && exit 1)
 
       - name: Load workflow client skill
@@ -78,11 +80,11 @@ jobs:
       - name: Run Claude Code Risk Assessment
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_KEY }}
-          github_token: ${{ secrets.TOKEN }}
+          anthropic_api_key: ${{ secrets.anthropicKey }}
+          github_token: ${{ secrets.githubToken }}
           claude_args: |
             --system-prompt "${{ steps.skill.outputs.skill_content }}"
-            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}","--header","x-api-key ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}"]}}}'
+            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.mcpUrl }}","--header","x-api-key ${{ secrets.wafApiKey }}"]}}}'
           prompt: |
             Assess the deployment risk for this pull request and post a comprehensive comment.
 

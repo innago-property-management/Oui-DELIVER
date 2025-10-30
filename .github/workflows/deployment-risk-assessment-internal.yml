@@ -3,18 +3,39 @@ name: Deployment Risk Assessment (Internal)
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        required: true
+        description: "Pull Request number to assess"
+        type: number
+      base_branch:
+        required: true
+        description: "Base branch (e.g., main, develop)"
+        type: string
+        default: 'main'
 
 jobs:
+  preflight:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check MCP risk assessment endpoint
+        run: |
+          curl -sf --header "x-api-key: ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}" "${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health" || \
+            (echo "::error::Cannot reach MCP risk assessment service. Check secrets and endpoint." && exit 1)
+
+
   assess-risk:
     name: Assess Deployment Risk
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
     with:
-      pr_number: ${{ github.event.pull_request.number }}
-      base_branch: ${{ github.event.pull_request.base.ref }}
+      pr_number: ${{ inputs.pr_number || github.event.pull_request.number }}
+      base_branch: ${{ inputs.base_branch || github.event.pull_request.base.ref }}
     secrets:
-      ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      DEPLOYMENT_RISK_MCP_URL: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
-      TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      DEPLOYMENT_RISK_WAF_KEY: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}
+      anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
+      mcpUrl: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
+      githubToken: ${{ secrets.GITHUB_TOKEN }}
+      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}
 
 
