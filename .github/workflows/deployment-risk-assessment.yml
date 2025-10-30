@@ -24,6 +24,8 @@ on:
         required: true
       TOKEN:
         required: true
+      DEPLOYMENT_RISK_WAF_KEY:
+        required: true
 
 permissions:
   contents: read
@@ -75,7 +77,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: |
             --system-prompt "${{ steps.skill.outputs.skill_content }}"
-            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}"]}}}'
+            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}","--header","x-api-key ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}"]}}}'
           prompt: |
             Assess the deployment risk for this pull request and post a comprehensive comment.
 
