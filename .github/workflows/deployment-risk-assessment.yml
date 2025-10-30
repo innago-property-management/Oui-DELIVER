@@ -1,15 +1,29 @@
-name: Deployment Risk Assessment
+name: Deployment Risk Assessment (Reusable)
 
 on:
-#  pull_request:
-#    types: [opened, synchronize, reopened]
-  # Allow manual trigger for testing
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: 'PR number to assess'
         required: true
         type: number
+        description: 'Pull request number to assess'
+      base_branch:
+        required: false
+        type: string
+        default: 'main'
+        description: 'Base branch for comparison'
+      additional_context:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional requirements or constraints to add to the skill'
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+      DEPLOYMENT_RISK_MCP_URL:
+        required: true
+      GITHUB_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -30,10 +44,26 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@v4
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/deployment-risk-workflow-client/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
       - name: Load workflow client skill
         id: skill
         run: |
-          SKILL_CONTENT=$(cat .github/skills/deployment-risk-workflow-client/SKILL.md)
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/deployment-risk-workflow-client/SKILL.md)
+
+          # Append additional context if provided
+          if [ -n "${{ inputs.additional_context }}" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"${{ inputs.additional_context }}"
+          fi
+
           echo "skill_content<<EOF" >> $GITHUB_OUTPUT
           echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -51,8 +81,8 @@ jobs:
 
             **PR Context:**
             - Repository: ${{ github.repository }}
-            - PR Number: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
-            - Base Branch: ${{ github.base_ref || 'main' }}
+            - PR Number: ${{ inputs.pr_number }}
+            - Base Branch: ${{ inputs.base_branch }}
             - Head Branch: ${{ github.head_ref }}
             - Author: ${{ github.event.pull_request.user.login }}
             - Title: ${{ github.event.pull_request.title }}
