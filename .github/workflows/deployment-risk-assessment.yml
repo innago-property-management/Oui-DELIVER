@@ -18,7 +18,7 @@ on:
         default: ''
         description: 'Additional requirements or constraints to add to the skill'
     secrets:
-      ANTHROPIC_API_KEY:
+      ANTHROPIC_KEY:
         required: true
       DEPLOYMENT_RISK_MCP_URL:
         required: true
@@ -73,8 +73,8 @@ jobs:
       - name: Run Claude Code Risk Assessment
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_KEY }}
+          github_token: ${{ secrets.TOKEN }}
           claude_args: |
             --system-prompt "${{ steps.skill.outputs.skill_content }}"
             --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.DEPLOYMENT_RISK_MCP_URL }}","--header","x-api-key ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}"]}}}'

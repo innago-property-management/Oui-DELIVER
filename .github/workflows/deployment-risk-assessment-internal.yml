@@ -12,7 +12,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
       base_branch: ${{ github.event.pull_request.base.ref }}
     secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       DEPLOYMENT_RISK_MCP_URL: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
       TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DEPLOYMENT_RISK_WAF_KEY: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}
