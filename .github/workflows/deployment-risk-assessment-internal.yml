@@ -39,7 +39,6 @@ jobs:
           
           echo "::notice::MCP endpoint is healthy"
 
-
   assess-risk:
     name: Assess Deployment Risk
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
