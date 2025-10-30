@@ -56,6 +56,11 @@ jobs:
           sparse-checkout-cone-mode: false
           path: oui-deliver-checkout
 
+      - name: Check MCP risk assessment endpoint
+        run: |
+          curl -sf --header "x-api-key: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}" "${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health" || \
+            (echo "::error::Cannot reach MCP risk assessment service. Check secrets and endpoint." && exit 1)
+
       - name: Load workflow client skill
         id: skill
         run: |
