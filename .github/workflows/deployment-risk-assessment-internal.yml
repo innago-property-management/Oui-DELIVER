@@ -41,6 +41,8 @@ jobs:
 
   assess-risk:
     name: Assess Deployment Risk
+    needs:
+      - preflight
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
     with:
       pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
