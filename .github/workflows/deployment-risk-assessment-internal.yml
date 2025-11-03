@@ -39,9 +39,10 @@ jobs:
           
           echo "::notice::MCP endpoint is healthy"
 
-
   assess-risk:
     name: Assess Deployment Risk
+    needs:
+      - preflight
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
     with:
       pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
@@ -50,6 +51,6 @@ jobs:
       anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
       mcpUrl: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
       githubToken: ${{ secrets.GITHUB_TOKEN }}
-      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_API_KEY }}
+      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}
 
 
