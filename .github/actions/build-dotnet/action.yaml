@@ -1,5 +1,5 @@
 name: "Build DotNet"
-description: "Builds a solution"
+description: "Builds a .NET solution with support for NUnit and MSTest test frameworks"
 inputs:
   version:
     required: true
@@ -57,17 +57,27 @@ runs:
         
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
+        
+        # Install test adapters for NUnit and MSTest
+        dotnet add ${TEST_PROJECT_PATH} package NUnit3TestAdapter --version 4.5.0 || true
+        dotnet add ${TEST_PROJECT_PATH} package Microsoft.NET.Test.Sdk --version 17.8.0 || true
+        dotnet add ${TEST_PROJECT_PATH} package MSTest.TestAdapter --version 3.1.1 || true
+        
+        # Run tests with support for NUnit and MSTest frameworks
         dotnet test ${TEST_PROJECT_PATH} \
           --no-restore \
           --configuration Release \
           --test-adapter-path:. \
           --logger:"trx;LogFileName=test_results.trx" \
+          --logger:"nunit;LogFileName=nunit_results.xml" \
+          --logger:"console;verbosity=normal" \
           /p:CollectCoverage=true \
           /p:Threshold="$MINIMUM_COVERAGE" \
           /p:ThresholdType=line \
           /p:ThresholdStat=total \
           --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
-          --results-directory="$REPORTS_PATH"
+          --results-directory="$REPORTS_PATH" \
+          -- NUnit.NumberOfTestWorkers=1
     - name: ReportGenerator
       uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
       with:
@@ -82,10 +92,18 @@ runs:
       if: always()
       shell: bash
       run: cat test/results/coverage/Summary.md >> $GITHUB_STEP_SUMMARY
-    - name: Test Report
+    - name: Test Report (TRX)
       uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
       if: always()
       with:
-        name: dotnet tests
+        name: dotnet tests (TRX)
         path: "test/results/test_results.trx"
         reporter: dotnet-trx
+    - name: Test Report (NUnit)
+      uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
+      if: always()
+      with:
+        name: dotnet tests (NUnit)
+        path: "test/results/nunit_results.xml"
+        reporter: java-junit
+      continue-on-error: true
