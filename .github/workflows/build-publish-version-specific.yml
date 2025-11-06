@@ -64,6 +64,16 @@ on:
         description: "The path to the Dockerfile relative to the build context."
         type: string
         default: ''
+      dockerfileContext:
+        required: false
+        description: "The build context for the  Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      dockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: './Dockerfile'
       slsa:
         required: false
         default: false
@@ -135,7 +145,7 @@ jobs:
           name: 'build-artifact'
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@dotnet-version
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -157,6 +167,8 @@ jobs:
             nuget_password=${{ secrets.githubToken }}
           migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
           migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
+          dockerfileContext: ${{inputs.dockerfileContext}}
+          dockerfilePath: ${{inputs.dockerfilePath}}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
