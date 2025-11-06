@@ -54,7 +54,7 @@ runs:
           --password "$GHCR_TOKEN" \
           --store-password-in-clear-text \
           "https://nuget.pkg.github.com/innago-property-management/index.json"
-        
+        cd "$(dirname "$TEST_PROJECT_PATH")"
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
     #     dotnet test ${TEST_PROJECT_PATH} \
