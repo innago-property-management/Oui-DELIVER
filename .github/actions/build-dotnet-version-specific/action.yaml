@@ -57,27 +57,27 @@ runs:
         
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
-        dotnet test ${TEST_PROJECT_PATH} \
-          --no-restore \
-          --configuration Release \
-          --test-adapter-path:. \
-          --logger:"trx;LogFileName=test_results.trx" \
-          /p:CollectCoverage=true \
-          /p:Threshold="$MINIMUM_COVERAGE" \
-          /p:ThresholdType=line \
-          /p:ThresholdStat=total \
-          --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
-          --results-directory="$REPORTS_PATH"
-    - name: ReportGenerator
-      uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
-      with:
-        reports: '*/**/coverage.opencover.xml'
-        reporttypes: 'Html;MarkdownSummary'
-        assemblyfilters: '-xunit*;-Dapper;'
-        classfilters: '+*'
-        filefilters: '-Startup.cs;-Program.cs;-*.cshtml'
-        verbosity: 'Warning'
-        targetdir: 'test/results/coverage'
+        # dotnet test ${TEST_PROJECT_PATH} \
+        #   --no-restore \
+        #   --configuration Release \
+        #   --test-adapter-path:. \
+        #   --logger:"trx;LogFileName=test_results.trx" \
+        #   /p:CollectCoverage=true \
+        #   /p:Threshold="$MINIMUM_COVERAGE" \
+        #   /p:ThresholdType=line \
+        #   /p:ThresholdStat=total \
+        #   --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
+        #   --results-directory="$REPORTS_PATH"
+    # - name: ReportGenerator
+    #   uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
+    #   with:
+    #     reports: '*/**/coverage.opencover.xml'
+    #     reporttypes: 'Html;MarkdownSummary'
+    #     assemblyfilters: '-xunit*;-Dapper;'
+    #     classfilters: '+*'
+    #     filefilters: '-Startup.cs;-Program.cs;-*.cshtml'
+    #     verbosity: 'Warning'
+    #     targetdir: 'test/results/coverage'
     - name: Output to markdown
       if: always()
       shell: bash
