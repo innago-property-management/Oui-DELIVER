@@ -41,6 +41,19 @@ jobs:
           echo "Next tag: $NEW_TAG"
           TAG=$(git describe --exact-match --tags || echo "")
           echo "TAG=$TAG"
+
+          # Validate production tag format if a tag exists
+          if [ -n "$TAG" ]; then
+            echo "Validating tag format for production deployment: $TAG"
+            if ! echo "$TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "❌ ERROR: Tag '$TAG' is not a valid production semver tag."
+              echo "Production tags must be in the format: major.minor.patch (e.g., 1.2.3)"
+              echo "Pre-release tags (e.g., 1.2.3-rc.1, 1.2.3-beta.2) are not allowed for production deployments."
+              exit 1
+            fi
+            echo "✅ Tag '$TAG' is a valid production semver tag"
+          fi
+
           if [ -z "$TAG" ]; then
             BRANCH=$(git branch --show-current)
             if [ "$BRANCH" == "main" ]; then
