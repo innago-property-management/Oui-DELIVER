@@ -55,7 +55,7 @@ runs:
           environment="prod"
         elif [[ "$buildPlatform" == "qa" ]]; then
           environment="qa"
-        elif [[ "$buildPlatform" == "stage" ]]; then
+        elif [[ "$buildPlatform" == "pre" ]]; then
           environment="stage"
         else
           environment="dev"
