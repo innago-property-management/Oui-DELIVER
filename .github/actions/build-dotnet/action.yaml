@@ -22,6 +22,7 @@ inputs:
     default: |
       8.x
       9.x
+      10.x
 runs:
   using: "composite"
   steps:
