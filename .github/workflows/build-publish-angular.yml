@@ -82,6 +82,7 @@ jobs:
       attestations: write
       pull-requests: write
     needs: version
+    timeout-minutes: 360
     steps:
       - name: Checkout
         # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
