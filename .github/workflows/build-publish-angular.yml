@@ -74,7 +74,7 @@ jobs:
     permissions: 
       contents: read
   build:
-    runs-on: ['angular-ui-16-core-64gb']
+    runs-on: Angular-UI-Docker
     permissions:
       contents: read
       packages: write
