@@ -96,7 +96,7 @@ jobs:
       - name: Authenticate to GitHub Packages
         run: |
           echo "@innago-property-management:registry=https://npm.pkg.github.com/" >> ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.npm_token }}" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.githubToken }}" >> ~/.npmrc
 
       - name: Clean & Install Dependencies
         # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
