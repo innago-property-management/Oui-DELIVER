@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       - name: semgrep-action
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
   secrets:
@@ -40,7 +40,7 @@ jobs:
     container:
       image: ghcr.io/gitleaks/gitleaks:latest
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       - name: GitLeaks
         shell: bash
         env: 
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
       - uses: actions/setup-node@v5
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
       - uses: actions/setup-node@v5
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
         with:
           fetch-depth: 0 # Required for Chromatic
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
       - uses: actions/setup-node@v5
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -133,7 +133,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
       - uses: actions/setup-node@v5
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
@@ -149,7 +149,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5.0.1
+      - uses: actions/checkout@v6.0.1
       - uses: actions/setup-node@v5
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
       - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
