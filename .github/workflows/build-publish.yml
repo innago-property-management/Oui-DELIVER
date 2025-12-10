@@ -91,7 +91,7 @@ jobs:
     permissions: 
       contents: read
   build:
-    runs-on: ubuntu-latest
+    runs-on: Linux-x64__16-core__64GB-RAM
     permissions:
       contents: read
       packages: write
@@ -99,6 +99,7 @@ jobs:
       attestations: write
       pull-requests: write
     needs: version
+    timeout-minutes: 360
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
