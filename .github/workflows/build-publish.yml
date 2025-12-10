@@ -91,7 +91,9 @@ jobs:
     permissions: 
       contents: read
   build:
-    runs-on: Linux-x64__16-core__64GB-RAM
+    runs-on:
+      group: Default Larger Runners
+      labels: ubuntu-latest-m
     permissions:
       contents: read
       packages: write
