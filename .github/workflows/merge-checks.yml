@@ -53,7 +53,7 @@ jobs:
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   vulnerabilities:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Setup .NET
@@ -62,6 +62,8 @@ jobs:
           dotnet-version: |
             9.x
             10.x
+      - name: Install xq
+        run: pip install yq==3.2.3
       - name: Cache NuGet packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # 4.3.0
         with:
@@ -85,15 +87,46 @@ jobs:
           
           dotnet restore
           
-          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
-          cat vuln.log >> $GITHUB_STEP_SUMMARY
+          # Extract suppressed advisory URLs from all .csproj files
+          # Handles both single and array NuGetAuditSuppress entries
+          SUPPRESSED_URLS=$(find . -name '*.csproj' -exec xq -r \
+            '.Project.ItemGroup[]? | select(.NuGetAuditSuppress != null) | 
+             if .NuGetAuditSuppress | type == "array" then .NuGetAuditSuppress[]."@Include" 
+             else .NuGetAuditSuppress."@Include" end' {} \; 2>/dev/null | sort -u || true)
           
-          if grep -iq -w -c "critical\|high\|moderate\|low" vuln.log; then
-            COUNT=$(grep -ic -w "critical\|high\|moderate\|low" vuln.log)
-            echo "Security: Vulnerabilities found on the log output: $COUNT"
+          if [[ -n "$SUPPRESSED_URLS" ]]; then
+            echo "### Suppressed Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$SUPPRESSED_URLS" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
+          echo "### Vulnerability Scan Results (Raw)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          # Extract all advisory IDs and filter vuln.log in a single pass
+          echo "$SUPPRESSED_URLS" | grep -oE 'GHSA-[a-z0-9-]+' | sort -u > suppressed_ids.txt
+          if [[ -s suppressed_ids.txt ]]; then
+            grep -v -F -f suppressed_ids.txt vuln.log > filtered_vuln.log || cp vuln.log filtered_vuln.log
+          else
+            cp vuln.log filtered_vuln.log
+          fi
+          rm -f suppressed_ids.txt
+          
+          echo "### Vulnerability Scan Results (After Suppressions)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat filtered_vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          if grep -qiE 'critical|high|moderate|low' filtered_vuln.log; then
+            COUNT=$(grep -ciE 'critical|high|moderate|low' filtered_vuln.log)
+            echo "Security: Vulnerabilities found (after exclusions): $COUNT"
             exit 1
           else
-            echo "No vulnerabilities found"
+            echo "No vulnerabilities found (or all suppressed)"
             exit 0
           fi
   outdated:
