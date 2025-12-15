@@ -105,17 +105,14 @@ jobs:
           echo "### Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
           cat vuln.log >> $GITHUB_STEP_SUMMARY
           
-          # Filter out suppressed advisory IDs from the log
-          cp vuln.log filtered_vuln.log
-          while IFS= read -r url; do
-            if [[ -n "$url" ]]; then
-              # Extract advisory ID from URL (e.g., GHSA-xxxx-yyyy-zzzz)
-              ADVISORY_ID=$(echo "$url" | grep -oE 'GHSA-[a-z0-9-]+' || true)
-              if [[ -n "$ADVISORY_ID" ]]; then
-                grep -v "$ADVISORY_ID" filtered_vuln.log > filtered_vuln.tmp && mv filtered_vuln.tmp filtered_vuln.log || true
-              fi
-            fi
-          done <<< "$SUPPRESSED_URLS"
+          # Extract all advisory IDs and filter vuln.log in a single pass
+          echo "$SUPPRESSED_URLS" | grep -oE 'GHSA-[a-z0-9-]+' | sort -u > suppressed_ids.txt
+          if [[ -s suppressed_ids.txt ]]; then
+            grep -v -F -f suppressed_ids.txt vuln.log > filtered_vuln.log || cp vuln.log filtered_vuln.log
+          else
+            cp vuln.log filtered_vuln.log
+          fi
+          rm -f suppressed_ids.txt
           
           if grep -iq -w "critical\|high\|moderate\|low" filtered_vuln.log; then
             COUNT=$(grep -ic -w "critical\|high\|moderate\|low" filtered_vuln.log)
