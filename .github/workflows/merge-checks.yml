@@ -114,8 +114,8 @@ jobs:
           fi
           rm -f suppressed_ids.txt
           
-          if grep -iq -w "critical\|high\|moderate\|low" filtered_vuln.log; then
-            COUNT=$(grep -ic -w "critical\|high\|moderate\|low" filtered_vuln.log)
+          if grep -qiE 'critical|high|moderate|low' filtered_vuln.log; then
+            COUNT=$(grep -ciE 'critical|high|moderate|low' filtered_vuln.log)
             echo "Security: Vulnerabilities found (after exclusions): $COUNT"
             exit 1
           else
