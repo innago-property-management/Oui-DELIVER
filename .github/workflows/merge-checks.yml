@@ -123,8 +123,9 @@ jobs:
           cat filtered_vuln.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           
-          if grep -qiE 'critical|high|moderate|low' filtered_vuln.log; then
-            COUNT=$(grep -ciE 'critical|high|moderate|low' filtered_vuln.log)
+          # Match lines with severity AND advisory URL (not just header containing "Severity")
+          if grep -iE '(critical|high|moderate|low).*github.com/advisories/' filtered_vuln.log; then
+            COUNT=$(grep -ciE '(critical|high|moderate|low).*github.com/advisories/' filtered_vuln.log)
             echo "Security: Vulnerabilities found (after exclusions): $COUNT"
             exit 1
           else
