@@ -18,6 +18,7 @@ on:
 jobs:
   preflight:
     name: Preflight Checks
+    permissions: {}
     runs-on: ubuntu-latest
     steps:
       - name: Check MCP risk assessment endpoint
