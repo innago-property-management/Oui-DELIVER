@@ -78,6 +78,8 @@ jobs:
           GHCR_TOKEN: ${{ secrets.githubToken }}
           NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          
           dotnet nuget add source \
             --name "github" \
             --username "$GHCR_USER" \
