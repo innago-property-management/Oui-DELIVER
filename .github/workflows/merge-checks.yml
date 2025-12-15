@@ -102,8 +102,10 @@ jobs:
           fi
           
           dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
-          echo "### Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Vulnerability Scan Results (Raw)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           cat vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           
           # Extract all advisory IDs and filter vuln.log in a single pass
           echo "$SUPPRESSED_URLS" | grep -oE 'GHSA-[a-z0-9-]+' | sort -u > suppressed_ids.txt
@@ -113,6 +115,11 @@ jobs:
             cp vuln.log filtered_vuln.log
           fi
           rm -f suppressed_ids.txt
+          
+          echo "### Vulnerability Scan Results (After Suppressions)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat filtered_vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           
           if grep -qiE 'critical|high|moderate|low' filtered_vuln.log; then
             COUNT=$(grep -ciE 'critical|high|moderate|low' filtered_vuln.log)
