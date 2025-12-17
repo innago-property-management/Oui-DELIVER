@@ -91,9 +91,7 @@ jobs:
     permissions: 
       contents: read
   build:
-    runs-on:
-      group: Default Larger Runners
-      labels: ubuntu-latest-m
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
