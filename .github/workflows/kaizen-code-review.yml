@@ -1,0 +1,94 @@
+name: Kaizen Code Review (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+        description: 'Pull request number to review'
+      repository:
+        required: true
+        type: string
+        description: 'Repository in owner/name format'
+      base_branch:
+        required: false
+        type: string
+        default: 'main'
+        description: 'Base branch for comparison'
+      additional_context:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional requirements or constraints to add to the skill'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  kaizen-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          fetch-depth: 0  # Full history for git diff analysis
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/kaizen-review-workflow-client/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
+      - name: Load workflow client skill
+        id: skill
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-review-workflow-client/SKILL.md)
+
+          # Append additional context if provided
+          if [ -n "${{ inputs.additional_context }}" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"${{ inputs.additional_context }}"
+          fi
+
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code Kaizen Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey }}
+          github_token: ${{ secrets.githubToken }}
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+          prompt: |
+            Perform a Kaizen code review for the merged pull request and post improvement suggestions if found.
+
+            **PR Context:**
+            - Repository: ${{ inputs.repository }}
+            - PR Number: ${{ inputs.pr_number }}
+            - Base Branch: ${{ inputs.base_branch }}
+
+            **Your Task:**
+            1. Analyze the PR diff to understand what changed
+            2. Identify potential improvements following Kaizen principles (continuous improvement)
+            3. Focus on:
+               - Code quality and maintainability
+               - Performance optimizations
+               - Security considerations
+               - Best practices alignment
+               - Technical debt reduction opportunities
+            4. ONLY post a comment if you find actionable improvements
+            5. If no significant improvements are identified, skip posting a comment
+            6. Format suggestions as constructive feedback with specific examples
+            7. Prioritize suggestions by impact (high/medium/low)
