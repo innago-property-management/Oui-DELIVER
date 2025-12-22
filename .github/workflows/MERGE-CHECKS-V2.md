@@ -51,8 +51,8 @@ jobs:
       ignored_packages_path: ".github/ignored-packages.json"
 
       # NEW v2 parameters
-      ignored_outdated_packages: "@types/node@20.*,vitest@3.*,zod@3.*"
-      outdated_target: "minor"  # Only check minor/patch updates
+      ignored_outdated_packages: "@types/node,vitest,zod"
+      outdated_target: "latest"  # Check all updates, but ignore packages above
     secrets:
       githubToken: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -102,7 +102,7 @@ jobs:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `ignored_outdated_packages` | string | `""` | Comma-separated packages to ignore (e.g., `"@types/node@20.*,vitest@3.*"`) |
+| `ignored_outdated_packages` | string | `""` | Comma-separated **package names** to ignore (e.g., `"@types/node,vitest,zod"`). Note: Use package names only, NOT version patterns. |
 | `outdated_target` | string | `"latest"` | Update level: `latest`, `minor`, `patch`, `@next`, `@beta` |
 | `audit_config_path` | string | `""` | Path to audit-ci.jsonc config file (optional) |
 | `audit_level` | string | `"moderate"` | Minimum severity to fail: `moderate`, `high`, `critical` |
@@ -118,11 +118,11 @@ jobs:
 
 ### Use Case 1: Pin to Node 20 LTS
 
-Your project targets Node 20 but @types/node v25 is available:
+Your project targets Node 20 but @types/node v25 is available. Ignore @types/node completely:
 
 ```yaml
 with:
-  ignored_outdated_packages: "@types/node@20.*"
+  ignored_outdated_packages: "@types/node"
   outdated_target: "latest"
 ```
 
@@ -183,12 +183,12 @@ ls -la .github/audit-ci.jsonc
 
 ### "Outdated check fails on pinned major versions"
 
-Add packages to `ignored_outdated_packages` with version range:
+Add packages to `ignored_outdated_packages` (package names only, no version patterns):
 ```yaml
-ignored_outdated_packages: "@types/node@20.*,eslint@8.*"
+ignored_outdated_packages: "@types/node,eslint"
 ```
 
-Or use `outdated_target: "minor"` to ignore all major updates.
+Or use `outdated_target: "minor"` to ignore all major updates across all packages.
 
 ## Rollback to v1
 
