@@ -75,6 +75,17 @@ jobs:
 
 ## 🤖 AI-Powered Features
 
+### Kaizen Code Review
+
+Automatically review pull requests with incremental improvement suggestions following the "Boy Scout Rule":
+
+- **Code Quality**: Identifies opportunities for low-risk maintainability improvements
+- **Pattern Recognition**: Highlights well-written code patterns for learning
+- **Non-Blocking**: Suggestions are advisory, not blocking
+- **Smart Silence**: Only comments when genuinely helpful improvements are found
+
+**Learn More**: [Kaizen Skill Documentation](.github/skills/kaizen-review-workflow-client/SKILL.md)
+
 ### Deployment Risk Assessment
 
 Automatically assess deployment risk for pull requests using Claude AI:
