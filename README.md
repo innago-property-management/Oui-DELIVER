@@ -54,7 +54,7 @@ jobs:
 | **[build-publish-nextjs.yml](.github/workflows/build-publish-nextjs.yml)** | Build and deploy Next.js applications | Next.js |
 | **[build-publish-angular.yml](.github/workflows/build-publish-angular.yml)** | Build and deploy Angular applications | Angular |
 | **[merge-checks.yml](.github/workflows/merge-checks.yml)** | Security scanning, vulnerability checks, license validation | All |
-| **[kaizen-code-review.yml](.github/workflows/kaizen-code-review.yml)** | AI-powered code quality review with incremental improvement suggestions | All |
+| **[kaizen-code-review.yml](.github/workflows/kaizen-code-review.yml)** | AI-powered code quality review following the "Boy Scout Rule" - leave code better than you found it | All |
 | **[deployment-risk-assessment.yml](.github/workflows/deployment-risk-assessment.yml)** | AI-powered deployment risk analysis with Claude | All |
 | **[semver.yml](.github/workflows/semver.yml)** | Semantic versioning automation | All |
 
