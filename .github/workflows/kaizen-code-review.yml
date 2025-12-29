@@ -1,47 +1,26 @@
-name: Kaizen Code Review (Reusable)
+name: Kaizen Code Review
 
 on:
-  workflow_call:
-    inputs:
-      pr_number:
-        required: true
-        type: string
-        description: 'Pull request number to review'
-      repository:
-        required: true
-        type: string
-        description: 'Repository in owner/name format'
-      base_branch:
-        required: false
-        type: string
-        default: 'main'
-        description: 'Base branch for comparison'
-      additional_context:
-        required: false
-        type: string
-        default: ''
-        description: 'Additional requirements or constraints to add to the skill'
-    secrets:
-      anthropicKey:
-        required: true
-      githubToken:
-        required: true
-
-permissions:
-  contents: read
-  pull-requests: write
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
   kaizen-review:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
-          fetch-depth: 0  # Full history for git diff analysis
+          fetch-depth: 1
 
       - name: Sparse checkout Oui-DELIVER skill
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           repository: innago-property-management/Oui-DELIVER
           ref: main
@@ -50,50 +29,34 @@ jobs:
           sparse-checkout-cone-mode: false
           path: oui-deliver-checkout
 
-      - name: Load workflow client skill
+      - name: Load Kaizen Skill
         id: skill
         run: |
           SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-review-workflow-client/SKILL.md)
-
-          # Append additional context if provided
-          if [ -n "${{ inputs.additional_context }}" ]; then
-            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"${{ inputs.additional_context }}"
-          fi
-
           echo "skill_content<<EOF" >> $GITHUB_OUTPUT
           echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Run Claude Code Kaizen Review
+      - name: Run Kaizen Code Review
+        id: kaizen-review
         uses: anthropics/claude-code-action@v1
-        id: kaizen
         with:
-          anthropic_api_key: ${{ secrets.anthropicKey }}
-          github_token: ${{ secrets.githubToken }}
-          show_full_output: true
-          claude_args: |
-            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Perform a Kaizen code review for the merged pull request.
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
 
-            **PR Context:**
-            - Repository: ${{ inputs.repository }}
-            - PR Number: ${{ inputs.pr_number }}
-            - Base Branch: ${{ inputs.base_branch }}
+            You are a Kaizen code quality advisor. Review this pull request following the guidelines in the skill document.
 
-            **Your Task:**
-            1. Use the Bash tool to fetch the PR diff: `gh pr diff ${{ inputs.pr_number }}`
-            2. Analyze the diff to understand what changed
-            3. Identify potential improvements following Kaizen principles (continuous improvement)
-            4. Focus on:
-               - Code quality and maintainability
-               - Performance optimizations
-               - Security considerations
-               - Best practices alignment
-               - Technical debt reduction opportunities
-            5. If you find actionable improvements:
-               - Write your review as markdown to a file: `/tmp/kaizen-review.md`
-               - Use the Bash tool to post it: `gh pr comment ${{ inputs.pr_number }} --body-file /tmp/kaizen-review.md`
-            6. If no significant improvements are identified, do nothing (silence is success)
-            7. Format suggestions as constructive feedback with specific examples
-            8. Prioritize suggestions by impact (high/medium/low)
+            **Your task:**
+            1. Use `gh pr diff` to see what changed
+            2. Identify opportunities for incremental improvements following the "Boy Scout Rule"
+            3. Recognize patterns that were done well (add a "✅ What Was Done Well" section)
+            4. Use `gh pr review` to leave your review:
+               - Use `gh pr review --comment` for suggestions and observations
+               - Only suggest improvements that meet the Quality Bar defined in the skill
+               - If no improvements are found, you can still leave positive feedback on what was done well
+
+            Use the loaded skill as your guide for what qualifies as a good suggestion.
+
+          claude_args: '--system-prompt "${{ steps.skill.outputs.skill_content }}" --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
