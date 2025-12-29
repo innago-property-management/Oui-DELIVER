@@ -59,4 +59,4 @@ jobs:
 
             Use the loaded skill as your guide for what qualifies as a good suggestion.
 
-          claude_args: '--system-prompt "${{ steps.skill.outputs.skill_content }}" --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          claude_args: '--system-prompt "${{ steps.skill.outputs.skill_content }}" --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh api:*)"'
