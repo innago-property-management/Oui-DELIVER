@@ -67,6 +67,7 @@ jobs:
       - name: Run Claude Code Kaizen Review
         uses: anthropics/claude-code-action@v1
         with:
+          mode: assist
           anthropic_api_key: ${{ secrets.anthropicKey }}
           github_token: ${{ secrets.githubToken }}
           claude_args: |
