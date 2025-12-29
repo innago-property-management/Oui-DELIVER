@@ -113,6 +113,7 @@ All workflows include comprehensive security checks:
 ## 📖 Documentation
 
 - **[Getting Started](docs/getting-started.md)** *(coming soon)*
+- **[Kaizen Code Review Skill](.github/skills/kaizen-review-workflow-client/SKILL.md)**
 - **[Deployment Risk Assessment](.github/workflows/README-DEPLOYMENT-RISK.md)**
 - **[Architecture](.github/workflows/README-DEPLOYMENT-RISK-ARCHITECTURE.md)**
 - **[Claude Integration Guide](CLAUDE.md)**
