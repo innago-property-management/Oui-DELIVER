@@ -6,7 +6,7 @@
 [![GitHub Actions](https://img.shields.io/badge/GitHub-Actions-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 [![Claude AI](https://img.shields.io/badge/Claude-AI%20Powered-8B5CF6)](https://www.anthropic.com/claude)
 
-Oui-DELIVER provides production-ready, reusable GitHub Actions workflows for .NET, Node.js, Python, Angular, and Next.js projects. Deploy with confidence using our comprehensive CI/CD pipeline that includes security scanning, automated testing, container builds, and AI-powered deployment risk assessment.
+Oui-DELIVER provides production-ready, reusable GitHub Actions workflows for .NET, Node.js, Python, Angular, and Next.js projects. Deploy with confidence using our comprehensive CI/CD pipeline that includes security scanning, automated testing, container builds, AI-powered code quality review, and deployment risk assessment.
 
 ## 🚀 Quick Start
 
