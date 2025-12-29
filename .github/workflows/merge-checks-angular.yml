@@ -62,7 +62,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
       - run: npm ci --legacy-peer-deps
       - run: npm run format:check
 
@@ -76,7 +75,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
 
@@ -91,7 +89,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ inputs.node_version }}
@@ -109,7 +106,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
       - run: npm ci --legacy-peer-deps
       - run: |
           npm audit --json --audit-level=high > audit.json || true
@@ -130,7 +126,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
       - name: Outdated Tool
         shell: bash
         run: |
@@ -148,7 +143,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
           cache: 'npm'
       - run: npm ci --legacy-peer-deps
       - run: NODE_OPTIONS=--max-old-space-size=8192 npm run test:ci
@@ -166,5 +160,4 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-          githubToken: ${{ secrets.ORG_NUGET_PUSH }}
           cache: 'npm'
