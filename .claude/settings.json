@@ -10,7 +10,9 @@
       "Bash(gh api:*)",
       "Bash(gh issue view:*)",
       "Bash(gh issue list:*)",
-      "Bash(gh search:*)"
+      "Bash(gh search:*)",
+      "Bash(gh pr review)",
+      "Bash(gh pr review :*)"
     ]
   }
 }
