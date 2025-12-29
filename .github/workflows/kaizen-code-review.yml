@@ -66,14 +66,15 @@ jobs:
 
       - name: Run Claude Code Kaizen Review
         uses: anthropics/claude-code-action@v1
+        id: kaizen
         with:
-          mode: assist
           anthropic_api_key: ${{ secrets.anthropicKey }}
           github_token: ${{ secrets.githubToken }}
+          show_full_output: true
           claude_args: |
             --system-prompt "${{ steps.skill.outputs.skill_content }}"
           prompt: |
-            Perform a Kaizen code review for the merged pull request and post improvement suggestions if found.
+            Perform a Kaizen code review for the merged pull request.
 
             **PR Context:**
             - Repository: ${{ inputs.repository }}
@@ -81,15 +82,18 @@ jobs:
             - Base Branch: ${{ inputs.base_branch }}
 
             **Your Task:**
-            1. Analyze the PR diff to understand what changed
-            2. Identify potential improvements following Kaizen principles (continuous improvement)
-            3. Focus on:
+            1. Use the Bash tool to fetch the PR diff: `gh pr diff ${{ inputs.pr_number }}`
+            2. Analyze the diff to understand what changed
+            3. Identify potential improvements following Kaizen principles (continuous improvement)
+            4. Focus on:
                - Code quality and maintainability
                - Performance optimizations
                - Security considerations
                - Best practices alignment
                - Technical debt reduction opportunities
-            4. ONLY post a comment if you find actionable improvements
-            5. If no significant improvements are identified, skip posting a comment
-            6. Format suggestions as constructive feedback with specific examples
-            7. Prioritize suggestions by impact (high/medium/low)
+            5. If you find actionable improvements:
+               - Write your review as markdown to a file: `/tmp/kaizen-review.md`
+               - Use the Bash tool to post it: `gh pr comment ${{ inputs.pr_number }} --body-file /tmp/kaizen-review.md`
+            6. If no significant improvements are identified, do nothing (silence is success)
+            7. Format suggestions as constructive feedback with specific examples
+            8. Prioritize suggestions by impact (high/medium/low)
