@@ -3,15 +3,31 @@ name: Kaizen Code Review
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+        description: 'Pull request number to review'
+      repository:
+        required: true
+        type: string
+        description: 'Repository in owner/name format'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
 
 jobs:
   kaizen-review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: read
-      id-token: write
 
     steps:
       - name: Checkout repository
@@ -41,10 +57,11 @@ jobs:
         id: kaizen-review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ github.event_name == 'workflow_call' && secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.event_name == 'workflow_call' && secrets.githubToken || secrets.GITHUB_TOKEN }}
           prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            REPO: ${{ github.event_name == 'workflow_call' && inputs.repository || github.repository }}
+            PR NUMBER: ${{ github.event_name == 'workflow_call' && inputs.pr_number || github.event.pull_request.number }}
 
             You are a Kaizen code quality advisor. Review this pull request following the guidelines in the skill document.
 
