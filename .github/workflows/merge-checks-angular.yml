@@ -122,6 +122,10 @@ jobs:
           node-version: lts/*
       - name: Install jq
         uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
+          node-version: ${{ inputs.node_version }}
+          npm_token: ${{ secrets.npm_token }}
       - name: Outdated Tool
         shell: bash
         run: |

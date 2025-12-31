@@ -6,7 +6,7 @@
 [![GitHub Actions](https://img.shields.io/badge/GitHub-Actions-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 [![Claude AI](https://img.shields.io/badge/Claude-AI%20Powered-8B5CF6)](https://www.anthropic.com/claude)
 
-Oui-DELIVER provides production-ready, reusable GitHub Actions workflows for .NET, Node.js, Python, Angular, and Next.js projects. Deploy with confidence using our comprehensive CI/CD pipeline that includes security scanning, automated testing, container builds, and AI-powered deployment risk assessment.
+Oui-DELIVER provides production-ready, reusable GitHub Actions workflows for .NET, Node.js, Python, Angular, and Next.js projects. Deploy with confidence using our comprehensive CI/CD pipeline that includes security scanning, automated testing, container builds, AI-powered code quality review, and deployment risk assessment.
 
 ## 🚀 Quick Start
 
@@ -54,6 +54,7 @@ jobs:
 | **[build-publish-nextjs.yml](.github/workflows/build-publish-nextjs.yml)** | Build and deploy Next.js applications | Next.js |
 | **[build-publish-angular.yml](.github/workflows/build-publish-angular.yml)** | Build and deploy Angular applications | Angular |
 | **[merge-checks.yml](.github/workflows/merge-checks.yml)** | Security scanning, vulnerability checks, license validation | All |
+| **[kaizen-code-review.yml](.github/workflows/kaizen-code-review.yml)** | AI-powered code quality review following the "Boy Scout Rule" - leave code better than you found it | All |
 | **[deployment-risk-assessment.yml](.github/workflows/deployment-risk-assessment.yml)** | AI-powered deployment risk analysis with Claude | All |
 | **[semver.yml](.github/workflows/semver.yml)** | Semantic versioning automation | All |
 
@@ -73,6 +74,17 @@ jobs:
 | **[check-licenses-action](.github/actions/check-licenses-action/)** | Validate dependency licenses |
 
 ## 🤖 AI-Powered Features
+
+### Kaizen Code Review
+
+Automatically review pull requests with incremental improvement suggestions following the "Boy Scout Rule":
+
+- **Code Quality**: Identifies opportunities for low-risk maintainability improvements
+- **Pattern Recognition**: Highlights well-written code patterns for learning
+- **Non-Blocking**: Suggestions are advisory, not blocking
+- **Smart Silence**: Only comments when genuinely helpful improvements are found
+
+**Learn More**: [Kaizen Skill Documentation](.github/skills/kaizen-review-workflow-client/SKILL.md)
 
 ### Deployment Risk Assessment
 
@@ -101,6 +113,7 @@ All workflows include comprehensive security checks:
 ## 📖 Documentation
 
 - **[Getting Started](docs/getting-started.md)** *(coming soon)*
+- **[Kaizen Code Review Skill](.github/skills/kaizen-review-workflow-client/SKILL.md)**
 - **[Deployment Risk Assessment](.github/workflows/README-DEPLOYMENT-RISK.md)**
 - **[Architecture](.github/workflows/README-DEPLOYMENT-RISK-ARCHITECTURE.md)**
 - **[Claude Integration Guide](CLAUDE.md)**

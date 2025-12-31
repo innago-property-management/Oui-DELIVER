@@ -44,6 +44,8 @@ jobs:
     name: Assess Deployment Risk
     permissions:
       contents: read
+      issues: write
+      pull-requests: write
     needs:
       - preflight
     uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main

@@ -3,7 +3,7 @@ description: Add GitHub Package Registry auth token to .npmrc
 inputs:
   npm_token:
     required: true
-    description: "Github Classic Token"
+    description: "Github token for organization package resolve"
     
 runs:
   using: "composite"
