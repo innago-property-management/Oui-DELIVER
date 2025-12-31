@@ -57,8 +57,8 @@ jobs:
         id: kaizen-review
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ github.event_name == 'workflow_call' && secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.event_name == 'workflow_call' && secrets.githubToken || secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
           prompt: |
             REPO: ${{ github.event_name == 'workflow_call' && inputs.repository || github.repository }}
             PR NUMBER: ${{ github.event_name == 'workflow_call' && inputs.pr_number || github.event.pull_request.number }}
