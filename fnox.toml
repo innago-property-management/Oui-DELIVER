@@ -1,0 +1,8 @@
+default_provider = "keychain"
+
+[providers.keychain]
+type = "keychain"
+service = "oui-deliver"
+
+[secrets]
+ANTHROPIC_API_KEY= { provider = "keychain", value = "ANTHROPIC_API_KEY" }
