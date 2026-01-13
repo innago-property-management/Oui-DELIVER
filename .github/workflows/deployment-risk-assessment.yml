@@ -85,7 +85,8 @@ jobs:
             echo "::warning::Health check returned HTTP $HTTP_CODE"
 
             if [ "$attempt" -lt $MAX_RETRIES ]; then
-              WAIT=$((RETRY_DELAY ** attempt))
+              # Exponential backoff: 2, 4, 8 seconds (bit shift for POSIX compatibility)
+              WAIT=$((RETRY_DELAY << (attempt - 1)))
               echo "Retrying in ${WAIT}s..."
               sleep $WAIT
             fi
