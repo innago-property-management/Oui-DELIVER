@@ -61,7 +61,7 @@ cosign verify --key env://COSIGN_KEY "$IMAGE@$DIGEST" || {
 
 ---
 
-### 1.4 No Verification Docker Push Succeeded
+### 1.4 No Verification That Docker Push Succeeded
 
 **Problem**: Signing attempts even if push failed.
 
