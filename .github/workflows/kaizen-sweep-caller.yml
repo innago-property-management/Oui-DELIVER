@@ -5,6 +5,10 @@ name: Kaizen Sweep
 #
 # Copy this file to: .github/workflows/kaizen-sweep.yml in your repo
 
+permissions:
+  contents: write
+  pull-requests: write
+
 on:
   workflow_dispatch:
     inputs:
