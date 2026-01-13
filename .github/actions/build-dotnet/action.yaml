@@ -47,8 +47,11 @@ runs:
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ inputs.githubToken }}
         GITHUB_TOKEN: ${{ inputs.githubToken }}
+        # NuGet auth via env var - no cleartext password storage needed
+        # See: https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file#packagesourcecredentials
         NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
       run: |
+        # Add GitHub Packages source (auth handled by NuGetPackageSourceCredentials_github env var)
         dotnet nuget add source \
           --name "github" \
           "https://nuget.pkg.github.com/innago-property-management/index.json"
