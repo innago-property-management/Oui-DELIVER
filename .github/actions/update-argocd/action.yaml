@@ -43,6 +43,8 @@ runs:
         repoName: "${{ inputs.repoName }}"
       shell: bash
       run: |-
+        set -euo pipefail
+
         folderName=$(echo $folderName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         repoName=$(echo $repoName | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -52,18 +54,41 @@ runs:
         elif [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-.* ]]; then
           environment="dev"
         else
-          echo "Error: Tag '$tag' does not match any known pattern."
+          echo "::error::Tag '$tag' does not match any known pattern."
           exit 1
         fi
 
         fileName="value-overrides-${environment}.yaml"
         branchName="automated/${folderName}-${tag}"
-        
+
         git checkout -b "${branchName}"
         fullName="helm-values/${folderName}/${fileName}"
         fullName=$(realpath "${fullName}")
+
+        # Capture old values before update
+        OLD_IMAGE_TAG=$(yq '.image.tag' "$fullName") || OLD_IMAGE_TAG=""
+        OLD_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName") || OLD_MIGRATION_TAG=""
+
+        # Update image tags
         yq --inplace ".image.tag=\"${tag}\"" "${fullName}"
         yq --inplace ".migrationJob.image.tag=\"${tag}\"" "${fullName}"
+
+        # Verify image.tag was updated
+        NEW_IMAGE_TAG=$(yq '.image.tag' "$fullName")
+        if [ "$OLD_IMAGE_TAG" = "$NEW_IMAGE_TAG" ] || [ -z "$NEW_IMAGE_TAG" ] || [ "$NEW_IMAGE_TAG" = "null" ]; then
+          echo "::error::YAML update failed - image.tag unchanged or path not found (old: '$OLD_IMAGE_TAG', new: '$NEW_IMAGE_TAG')"
+          exit 1
+        fi
+
+        # Verify migrationJob.image.tag was updated
+        NEW_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName")
+        if [ "$OLD_MIGRATION_TAG" = "$NEW_MIGRATION_TAG" ] || [ -z "$NEW_MIGRATION_TAG" ] || [ "$NEW_MIGRATION_TAG" = "null" ]; then
+          echo "::error::YAML update failed - migrationJob.image.tag unchanged or path not found (old: '$OLD_MIGRATION_TAG', new: '$NEW_MIGRATION_TAG')"
+          exit 1
+        fi
+
+        echo "Successfully updated tags: image.tag='$NEW_IMAGE_TAG', migrationJob.image.tag='$NEW_MIGRATION_TAG'"
+
         git add "${fullName}"
         git commit --message="Update ${environment} to version ${tag}" --allow-empty
         git push --set-upstream origin "${branchName}"

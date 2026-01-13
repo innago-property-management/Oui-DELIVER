@@ -5,6 +5,10 @@ name: Kaizen Sweep
 #
 # Copy this file to: .github/workflows/kaizen-sweep.yml in your repo
 
+permissions:
+  contents: write
+  pull-requests: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -25,7 +29,7 @@ on:
 
 jobs:
   kaizen-sweep:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@v2
     with:
       repository: ${{ github.repository }}
       target_path: ${{ inputs.target_path }}

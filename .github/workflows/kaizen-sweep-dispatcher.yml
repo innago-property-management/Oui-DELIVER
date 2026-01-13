@@ -134,7 +134,30 @@ jobs:
       fail-fast: false
       max-parallel: 2  # Don't overwhelm the API
     steps:
+      - name: Check repo topic (opt-in gate)
+        id: topic-check
+        env:
+          GH_TOKEN: ${{ secrets.ORG_NUGET_PUSH || secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET_REPO="innago-property-management/${{ matrix.repo }}"
+          REQUIRED_TOPIC="kaizen-enabled"
+
+          echo "Checking if $TARGET_REPO has topic: $REQUIRED_TOPIC"
+
+          # Fetch repo topics
+          TOPICS=$(gh api "repos/$TARGET_REPO/topics" --jq '.names[]' 2>/dev/null || echo "")
+
+          if echo "$TOPICS" | grep -qx "$REQUIRED_TOPIC"; then
+            echo "has_topic=true" >> $GITHUB_OUTPUT
+            echo "Repo has required topic '$REQUIRED_TOPIC'"
+          else
+            echo "has_topic=false" >> $GITHUB_OUTPUT
+            echo "SKIPPED: $TARGET_REPO does not have topic '$REQUIRED_TOPIC'"
+            echo "To enable Kaizen sweeps, add the topic via: gh repo edit $TARGET_REPO --add-topic $REQUIRED_TOPIC"
+          fi
+
       - name: Dispatch sweep for ${{ matrix.repo }}
+        if: steps.topic-check.outputs.has_topic == 'true'
         env:
           GH_TOKEN: ${{ secrets.ORG_NUGET_PUSH || secrets.GITHUB_TOKEN }}
         run: |
@@ -146,16 +169,23 @@ jobs:
           if gh workflow run kaizen-sweep.yml \
             --repo "$TARGET_REPO" \
             -f dry_run="${{ inputs.dry_run || 'false' }}" 2>/dev/null; then
-            echo "✓ Dispatched sweep for $TARGET_REPO"
+            echo "Dispatched sweep for $TARGET_REPO"
           else
-            echo "✗ Failed to dispatch for $TARGET_REPO"
+            echo "Failed to dispatch for $TARGET_REPO"
             echo "  The repo may not have kaizen-sweep.yml workflow."
             echo "  Copy kaizen-sweep-caller.yml from Oui-DELIVER to enable."
           fi
 
       - name: Record dispatch
         run: |
-          echo "## Dispatched: ${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Repository: innago-property-management/${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Dry Run: ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.topic-check.outputs.has_topic }}" = "true" ]; then
+            echo "## Dispatched: ${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository: innago-property-management/${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Dry Run: ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Skipped: ${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Repository: innago-property-management/${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Reason: Missing required topic 'kaizen-enabled'" >> $GITHUB_STEP_SUMMARY
+            echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          fi
