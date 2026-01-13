@@ -136,31 +136,77 @@ runs:
         cache-from: type=gha, scope=${{ github.repository }}-migrations
         cache-to: type=gha, mode=max, scope=${{ github.repository }}-migrations
       
-    - name: sign container image
-      run: |
-        if [ -z "${{ env.DIGEST }}" ]; then
-          echo "ERROR: Image digest is not set. Skipping cosign sign step."
-          exit 1
-        fi
-        cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
+    - name: Verify image in registry
+      id: verify-image
       shell: bash
       env:
-        COSIGN_KEY: ${{inputs.cosignKey}}
-        COSIGN_PASSWORD: ${{inputs.cosignPassword}}
         IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}"
         DIGEST: ${{ steps.publish.outputs.digest }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$DIGEST" ]; then
+          echo "::error::Docker push did not return a digest"
+          exit 1
+        fi
+
+        echo "Verifying image exists: ${IMAGE}@${DIGEST}"
+        if ! docker manifest inspect "${IMAGE}@${DIGEST}" > /dev/null 2>&1; then
+          echo "::error::Image not found in registry after push"
+          exit 1
+        fi
+
+        echo "::notice::Image verified in registry: ${IMAGE}@${DIGEST}"
+        echo "verified_digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+    - name: sign container image
+      run: |
+        set -euo pipefail
+
+        # Single source of truth: verified digest from previous step
+        if [ -z "$VERIFIED_DIGEST" ]; then
+          echo "::error::No verified digest available"
+          exit 1
+        fi
+
+        echo "Signing image: ${IMAGE}@${VERIFIED_DIGEST}"
+        cosign sign --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" --recursive=true --yes=true
+
+        echo "Verifying signature..."
+        cosign verify --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" || {
+          echo "::error::Signature verification failed!"
+          exit 1
+        }
+        echo "::notice::Image signed and verified successfully"
+      shell: bash
+      env:
+        COSIGN_KEY: ${{ inputs.cosignKey }}
+        COSIGN_PASSWORD: ${{ inputs.cosignPassword }}
+        IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}"
+        VERIFIED_DIGEST: ${{ steps.verify-image.outputs.verified_digest }}
       
     - name: sign migrations image
       if: ${{ inputs.migrationsDockerfilePath != '' }}
       run: |
-        if [ -z "${{ env.DIGEST }}" ]; then
-          echo "ERROR: Image digest is not set. Skipping cosign sign step."
+        set -euo pipefail
+
+        if [ -z "$DIGEST" ]; then
+          echo "::error::Migrations image digest is not set"
           exit 1
         fi
-        cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
+
+        echo "Signing migrations image: ${IMAGE}@${DIGEST}"
+        cosign sign --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" --recursive=true --yes=true
+
+        echo "Verifying migrations signature..."
+        cosign verify --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" || {
+          echo "::error::Migrations signature verification failed!"
+          exit 1
+        }
+        echo "::notice::Migrations image signed and verified successfully"
       shell: bash
       env:
-        COSIGN_KEY: ${{inputs.cosignKey}}
-        COSIGN_PASSWORD: ${{inputs.cosignPassword}}
+        COSIGN_KEY: ${{ inputs.cosignKey }}
+        COSIGN_PASSWORD: ${{ inputs.cosignPassword }}
         IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}-migrations"
         DIGEST: ${{ steps.publish-migrations.outputs.digest }}

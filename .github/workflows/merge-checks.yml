@@ -82,9 +82,6 @@ jobs:
 
           dotnet nuget add source \
             --name "github" \
-            --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN" \
-            --store-password-in-clear-text \
             "https://nuget.pkg.github.com/innago-property-management/index.json"
 
           dotnet restore
@@ -159,9 +156,6 @@ jobs:
         run: |
           dotnet nuget add source \
             --name "github" \
-            --username "$GHCR_USER" \
-            --password "$GHCR_TOKEN" \
-            --store-password-in-clear-text \
             "https://nuget.pkg.github.com/innago-property-management/index.json"
 
           PATH=/root/.dotnet/tools:$PATH
