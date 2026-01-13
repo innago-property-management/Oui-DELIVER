@@ -136,13 +136,30 @@ runs:
         cache-from: type=gha, scope=${{ github.repository }}-migrations
         cache-to: type=gha, mode=max, scope=${{ github.repository }}-migrations
       
+    - name: Verify image digest
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "${{ steps.publish.outputs.digest }}" ]; then
+          echo "::error::Docker push did not return a digest"
+          exit 1
+        fi
+        echo "::notice::Image digest: ${{ steps.publish.outputs.digest }}"
+
     - name: sign container image
       run: |
+        set -euo pipefail
         if [ -z "${{ env.DIGEST }}" ]; then
           echo "ERROR: Image digest is not set. Skipping cosign sign step."
           exit 1
         fi
         cosign sign --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" --recursive=true --yes=true
+        echo "Verifying signature..."
+        cosign verify --key env://COSIGN_KEY "${{ env.IMAGE }}@${{ env.DIGEST }}" || {
+          echo "::error::Signature verification failed!"
+          exit 1
+        }
+        echo "::notice::Image signed and verified successfully"
       shell: bash
       env:
         COSIGN_KEY: ${{inputs.cosignKey}}

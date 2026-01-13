@@ -1,8 +1,7 @@
 #!/bin/bash
+set -euo pipefail
 # Deploy Kaizen Code Review Workflows to Merlin Repositories
 # This script commits and pushes the kaizen workflow files to all merlin repos
-
-set -e  # Exit on error
 
 REPOS=(
   "merlin"
