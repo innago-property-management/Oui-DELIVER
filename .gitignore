@@ -1,3 +1,5 @@
 .claude/settings.local.json
 .env
 .idea/
+fnox.toml
+research/github-security-rotation/
