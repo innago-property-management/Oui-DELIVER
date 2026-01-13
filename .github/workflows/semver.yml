@@ -1,0 +1,78 @@
+name: semver
+on:
+  workflow_call:
+    outputs:
+      version:
+        description: "Version"
+        value: ${{ jobs.version.outputs.version }}
+
+permissions: 
+  contents: read
+  
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      version: ${{ steps.get_latest_tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # 6.0.1
+      - name: Get Latest Tag
+        id: get_latest_tag
+        env:
+          BRANCH_RAW: ${{ github.event.pull_request.head.ref || github.head_ref || github.ref_name }}
+        run: |
+          git fetch --tags --prune --force
+          latest_tag=$(git tag -l --sort=v:refname | tail -n 1)
+          latest_tag=${latest_tag:-0.0.1}
+          echo "current version is: $latest_tag"
+          MAJOR=$(echo "$latest_tag" | cut -d. -f1 | sed 's/[^0-9]//g')
+          MINOR=$(echo "$latest_tag" | cut -d. -f2)
+          PATCH=$(echo "$latest_tag" | cut -d. -f3)
+          PATCH=$((PATCH + 1))
+          NEW_TAG="${MAJOR}.${MINOR}.${PATCH}"
+          NEXT_VERSION=$(cat NEXT_VERSION || echo "0.0.0")
+          if [[ $(echo -e "$NEW_TAG\n$NEXT_VERSION" | sort -V | head -n1) == "$NEXT_VERSION" ]]; then
+            echo "NEXT_VERSION ($NEXT_VERSION) is less than NEW_TAG ($NEW_TAG)"
+          else
+            echo "NEXT_VERSION ($NEXT_VERSION) is greater than NEW_TAG ($NEW_TAG)"
+            NEW_TAG="$NEXT_VERSION"
+          fi
+          echo "Next tag: $NEW_TAG"
+          TAG=$(git describe --exact-match --tags || echo "")
+          echo "TAG=$TAG"
+
+          # Validate production tag format if a tag exists
+          if [ -n "$TAG" ]; then
+            echo "Validating tag format for production deployment: $TAG"
+            if ! echo "$TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "❌ ERROR: Tag '$TAG' is not a valid production semver tag."
+              echo "Production tags must be in the format: major.minor.patch (e.g., 1.2.3)"
+              echo "Pre-release tags (e.g., 1.2.3-rc.1, 1.2.3-beta.2) are not allowed for production deployments."
+              exit 1
+            fi
+            echo "✅ Tag '$TAG' is a valid production semver tag"
+          fi
+
+          if [ -z "$TAG" ]; then
+            BRANCH=$(git branch --show-current)
+            if [ "$BRANCH" == "main" ]; then
+              echo "rc"
+              export VERSION="$NEW_TAG-rc-${{ github.run_number }}"
+              export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
+            else
+              echo "feat"
+              echo "Current branch (raw): $BRANCH_RAW"
+              BRANCH_SANITIZED=$(echo "$BRANCH_RAW" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9\/-]+/-/g' | sed -E 's/^-+|-+$//g' | sed -E 's/\/+/-/g')
+              echo "Current branch (sanitized): $BRANCH_SANITIZED"
+              export VERSION="$NEW_TAG-feat-${BRANCH_SANITIZED}-${{ github.run_number }}"
+              export ASSEMBLY_VERSION="$NEW_TAG.${{ github.run_number }}"
+            fi
+          else
+            echo "tagged"
+            export VERSION="$TAG"
+            export ASSEMBLY_VERSION="$TAG"
+          fi
+          
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"

@@ -1,0 +1,8 @@
+[
+  "SonarAnalyzer.CSharp",
+  "Serilog.Sinks.Grafana.Loki",
+  "System.Text.RegularExpressions",
+  "System.Net.Http",
+  "SignalWire-DotNet",
+  "Twilio"
+]

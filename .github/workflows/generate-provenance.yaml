@@ -1,0 +1,44 @@
+# .github/workflows/generate-provenance.yml
+
+name: "Generate SLSA Provenance"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+  attestations: write
+
+jobs:
+  generate-hashes:
+    runs-on: ubuntu-latest
+    outputs: 
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Download a Build Artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 #v7.0.0
+        with: 
+          path: out
+          name: 'build-artifact'
+      - name: Calculate Hashes
+        id: hashes
+        shell: bash
+        run: |
+          shopt -s nullglob
+          echo "hashes=$(sha256sum .github/*.y* .github/**/*.y* out/**/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+  generate-provenance:
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    needs: generate-hashes
+    permissions: 
+      attestations: write
+      contents: write
+      id-token: write
+      actions: read
+    with:
+      base64-subjects: ${{ needs.generate-hashes.outputs.hashes }}
+      private-repository: true

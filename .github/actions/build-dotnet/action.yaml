@@ -1,0 +1,92 @@
+name: "Build DotNet"
+description: "Builds a solution"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  githubToken:
+    required: true
+    description: "Github Token for publish"
+  
+  testProjectPath:
+    required: true
+    description: "Test project discovery is from the solution if this is not set."
+    default: "."
+  dotnet-version:
+    required: false
+    description: ".NET SDK version(s) to install - a multi-line string"
+    default: |
+      8.x
+      9.x
+      10.x
+runs:
+  using: "composite"
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+    - name: Cache NuGet packages
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # 4.2.3
+      with:
+        path: ~/.nuget/packages        
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    - name: Build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        MINIMUM_COVERAGE: ${{ inputs.minimumCoverage }}
+        REPORTS_PATH: test/results
+        TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+        NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
+      run: |
+        dotnet nuget add source \
+          --name "github" \
+          --username "$GHCR_USER" \
+          --password "$GHCR_TOKEN" \
+          --store-password-in-clear-text \
+          "https://nuget.pkg.github.com/innago-property-management/index.json"
+        
+        dotnet restore
+        dotnet build --configuration Release --no-restore /p:Version="$VERSION"
+        dotnet test ${TEST_PROJECT_PATH} \
+          --no-restore \
+          --configuration Release \
+          --test-adapter-path:. \
+          --logger:"trx;LogFileName=test_results.trx" \
+          /p:CollectCoverage=true \
+          /p:Threshold="$MINIMUM_COVERAGE" \
+          /p:ThresholdType=line \
+          /p:ThresholdStat=total \
+          --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
+          --results-directory="$REPORTS_PATH"
+    - name: ReportGenerator
+      uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
+      with:
+        reports: '*/**/coverage.opencover.xml'
+        reporttypes: 'Html;MarkdownSummary'
+        assemblyfilters: '-xunit*;-Dapper;'
+        classfilters: '+*'
+        filefilters: '-Startup.cs;-Program.cs;-*.cshtml'
+        verbosity: 'Warning'
+        targetdir: 'test/results/coverage'
+    - name: Output to markdown
+      if: always()
+      shell: bash
+      run: cat test/results/coverage/Summary.md >> $GITHUB_STEP_SUMMARY
+    - name: Test Report
+      uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
+      if: always()
+      with:
+        name: dotnet tests
+        path: "test/results/test_results.trx"
+        reporter: dotnet-trx

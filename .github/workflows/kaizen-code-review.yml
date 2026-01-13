@@ -1,0 +1,91 @@
+name: Kaizen Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+        description: 'Pull request number to review'
+      repository:
+        required: true
+        type: string
+        description: 'Repository in owner/name format'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+concurrency:
+  group: kaizen-code-review-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  kaizen-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/kaizen-review-workflow-client/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
+      - name: Load Kaizen Skill
+        id: skill
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-review-workflow-client/SKILL.md)
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Kaizen Code Review
+        id: kaizen-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          # github_token commented out to use Claude's default identity instead of github-actions[bot]
+          # github_token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh:*)"]
+              }
+            }
+          prompt: |
+            REPO: ${{ github.event_name == 'workflow_call' && inputs.repository || github.repository }}
+            PR NUMBER: ${{ github.event_name == 'workflow_call' && inputs.pr_number || github.event.pull_request.number }}
+
+            You are a Kaizen code quality advisor. Review this pull request following the guidelines in the skill document.
+
+            **Your task:**
+            1. Use `gh pr diff` to see what changed
+            2. Identify opportunities for incremental improvements following the "Boy Scout Rule"
+            3. Recognize patterns that were done well (add a "✅ What Was Done Well" section)
+            4. Use `gh pr review` to leave your review:
+               - Use `gh pr review --comment` for suggestions and observations
+               - Only suggest improvements that meet the Quality Bar defined in the skill
+               - If no improvements are found, you can still leave positive feedback on what was done well
+
+            Use the loaded skill as your guide for what qualifies as a good suggestion.
+
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"

@@ -1,0 +1,130 @@
+name: build-publish
+on:
+  workflow_dispatch:
+    inputs: 
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      slsa:
+        required: false
+        default: false
+        description: "flag to enable slsa"
+        type: boolean
+
+  workflow_call:
+    inputs:
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''      
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: ''
+      slsa:
+        required: false
+        default: false
+        description: "flag to enable slsa"
+        type: boolean
+
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+      cosignKey:
+        description: "Cosign key"
+        required: true
+      cosignPassword:
+        description: "Cosign password"
+        required: true
+        
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
+permissions:
+  contents: write
+  actions: read
+  
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions: 
+      contents: read
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      pull-requests: write
+    needs: version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Build
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-python@main
+        with:
+          version: ${{ needs.version.outputs.version }}
+          githubToken: "${{ secrets.GITHUB_TOKEN }}" 
+      - name: Publish Container Image
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.githubToken }}
+          version: ${{ needs.version.outputs.version }}
+          imageName: ${{ inputs.imageName }}
+          organizationName: ${{ github.repository_owner }}
+          imageTitle: ${{ github.event.repository.name }}
+          imageDescription: ${{ github.event.repository.description }}
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
+          cosignKey: ${{secrets.cosignKey}}
+          cosignPassword: ${{secrets.cosignPassword}}
+          buildArgs: |
+            NUGET_SOURCE_NAME=github
+            NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
+            NUGET_USERNAME=${{ github.actor }}
+          secrets: |
+            nuget_password=${{ secrets.githubToken }}
+          migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
+          migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
+      - name: Update ArgoCD
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ github.event.repository.name }}
+  generate_provenance:
+    needs: build    
+    if: inputs.slsa && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yaml@main
+    permissions: 
+      attestations: write
+      id-token: write
+      actions: read
+      contents: write

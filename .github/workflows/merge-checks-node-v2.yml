@@ -1,0 +1,167 @@
+name: merge-checks-v2
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      allowed_licenses_path:
+        required: true
+        description: "Path to the allowed licenses JSON file"
+        type: string
+      ignored_packages_path:
+        required: true
+        description: "Path to the ignored packages JSON file"
+        type: string
+      # New v2 parameters
+      ignored_outdated_packages:
+        required: false
+        description: "Comma-separated list of packages to ignore in outdated check (e.g., '@types/node@20.*,vitest@3.*')"
+        type: string
+        default: ""
+      outdated_target:
+        required: false
+        description: "Target update level: latest, minor, patch, @next, @beta"
+        type: string
+        default: "latest"
+      audit_config_path:
+        required: false
+        description: "Path to audit-ci.jsonc config file (optional)"
+        type: string
+        default: ""
+      audit_level:
+        required: false
+        description: "Minimum severity to fail: moderate, high, critical"
+        type: string
+        default: "moderate"
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: GitLeaks
+        shell: bash
+        env:
+          GITHUB_TOKEN: "${{ secrets.githubToken }}"
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace  --log-opts="-n 10"
+
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit with audit-ci
+        shell: bash
+        run: |
+          # Build audit-ci command
+          AUDIT_CMD="npx --yes audit-ci"
+
+          # Use custom config if provided
+          if [ -n "${{ inputs.audit_config_path }}" ] && [ -f "${{ inputs.audit_config_path }}" ]; then
+            AUDIT_CMD="$AUDIT_CMD --config ${{ inputs.audit_config_path }}"
+          else
+            # Use input parameters for thresholds
+            case "${{ inputs.audit_level }}" in
+              moderate)
+                AUDIT_CMD="$AUDIT_CMD --moderate"
+                ;;
+              high)
+                AUDIT_CMD="$AUDIT_CMD --high"
+                ;;
+              critical)
+                AUDIT_CMD="$AUDIT_CMD --critical"
+                ;;
+            esac
+          fi
+
+          # Run audit and capture output
+          echo "Running: $AUDIT_CMD"
+          $AUDIT_CMD 2>&1 | tee audit.log
+
+          # Add to step summary
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat audit.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  outdated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check outdated dependencies with npm-check-updates
+        shell: bash
+        run: |
+          # Build npm-check-updates command
+          NCU_CMD="npx --yes npm-check-updates --errorLevel 2"
+
+          # Add target filtering
+          if [ -n "${{ inputs.outdated_target }}" ]; then
+            NCU_CMD="$NCU_CMD --target ${{ inputs.outdated_target }}"
+          fi
+
+          # Add package rejections
+          if [ -n "${{ inputs.ignored_outdated_packages }}" ]; then
+            NCU_CMD="$NCU_CMD --reject \"${{ inputs.ignored_outdated_packages }}\""
+          fi
+
+          # Run check and capture output
+          echo "Running: $NCU_CMD"
+          eval $NCU_CMD 2>&1 | tee outdated.log || {
+            EXIT_CODE=$?
+            echo "## Outdated Dependencies Found" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat outdated.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To update: \`npx npm-check-updates -u\` then \`npm install\`" >> $GITHUB_STEP_SUMMARY
+            exit $EXIT_CODE
+          }
+
+          echo "✅ All dependencies are up to date" >> $GITHUB_STEP_SUMMARY

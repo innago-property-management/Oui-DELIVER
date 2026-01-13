@@ -1,0 +1,43 @@
+name: Merge Checks (Internal)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Semgrep
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+
+  secrets:
+    name: Secrets (GitLeaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+      - name: GitLeaks
+        shell: bash
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace

@@ -1,0 +1,36 @@
+name: Kaizen Sweep
+
+# This workflow should be copied to repos that want kaizen-sweep.
+# It calls the reusable workflow from Oui-DELIVER.
+#
+# Copy this file to: .github/workflows/kaizen-sweep.yml in your repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_path:
+        required: false
+        type: string
+        description: 'Specific file or directory to sweep (optional)'
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+        description: 'If true, only report what would be changed without creating PR'
+      debug_mode:
+        required: false
+        type: boolean
+        default: false
+        description: 'If true, show full Claude output (may contain sensitive info)'
+
+jobs:
+  kaizen-sweep:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@main
+    with:
+      repository: ${{ github.repository }}
+      target_path: ${{ inputs.target_path }}
+      dry_run: ${{ inputs.dry_run }}
+      debug_mode: ${{ inputs.debug_mode }}
+    secrets:
+      anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
+      githubToken: ${{ secrets.GITHUB_TOKEN }}

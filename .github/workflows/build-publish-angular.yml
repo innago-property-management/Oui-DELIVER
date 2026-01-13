@@ -1,0 +1,156 @@
+name: build-publish
+on:
+  workflow_dispatch:
+    inputs: 
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: '0'
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+
+  workflow_call:
+    inputs:
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0      
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+      node_version:
+        required: true
+        description: "Node version to resolve node/npm dependency"
+        type: string
+
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+      cosignKey:
+        description: "Cosign key"
+        required: true
+      cosignPassword:
+        description: "Cosign password"
+        required: true
+      npm_token:
+        required: true
+        description: "Github token for organization package resolve"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions: 
+      contents: read
+  build:
+    runs-on: Linux-x64__16-core__64GB-RAM
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      pull-requests: write
+    needs: version
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v6.0.1
+
+      - name: Setup Node
+        # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/setup-node@v6
+        with:
+          node-version: "${{ inputs.node_version }}"
+      - name: Authenticate to GitHub Packages
+        run: |
+          echo "@innago-property-management:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.npm_token }}" >> ~/.npmrc
+
+      - name: Clean & Install Dependencies
+        # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          rm -rf node_modules # Remove old node_modules & lock file
+          npm install --legacy-peer-deps
+      - name: UI Build
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Build
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
+        with:
+          npm_token: ${{ secrets.npm_token }}
+          node_version: "${{ inputs.node_version }}"
+      - name: Upload dist/ folder
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4
+        with:
+          name: dist-artifact
+          path: dist/**
+          overwrite: true
+      # We will uncommit when package legacy will be removed by upgrading to latst version.
+      # - name: Generate SBOM
+      #   if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      #   shell: bash
+      #   run: |
+      #     mkdir out
+      #     npx @cyclonedx/cyclonedx-npm --output-file out/sbom.json --no-check
+      # - name: Upload SBOMs
+      #   if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      #   uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4
+      #   with:
+      #     path: out
+      #     overwrite: 'true'
+      - name: Publish Container Image
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.githubToken }}
+          version: ${{ needs.version.outputs.version }}
+          imageName: ${{ inputs.imageName }}
+          organizationName: ${{ github.repository_owner }}
+          imageTitle: ${{ github.event.repository.name }}
+          imageDescription: ${{ github.event.repository.description }}
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
+          cosignKey: ${{secrets.cosignKey}}
+          cosignPassword: ${{secrets.cosignPassword}}
+      - name: Update ArgoCD
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ github.event.repository.name }}

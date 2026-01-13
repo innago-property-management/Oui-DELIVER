@@ -1,0 +1,36 @@
+name: "Build Node"
+description: "Builds a node app"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  githubToken:
+    required: true
+    description: "Github Token for publish"
+  
+  testProjectPath:
+    required: true
+    description: "Test project discovery is from the solution if this is not set."
+    default: "."
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: lts/*
+    - name: Build
+      id: build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+      run: |
+        npm ci
+        npm run build

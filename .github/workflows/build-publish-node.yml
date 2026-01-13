@@ -1,0 +1,121 @@
+name: build-publish
+on:
+  workflow_dispatch:
+    inputs: 
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+
+  workflow_call:
+    inputs:
+      imageName:
+        required: false
+        description: "Image Name. Omit if there is no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0      
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+      cosignKey:
+        description: "Cosign key"
+        required: true
+      cosignPassword:
+        description: "Cosign password"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+  
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions: 
+      contents: read
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      pull-requests: write
+    needs: version
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Build
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-node@main
+        with:
+          version: ${{ needs.version.outputs.version }}
+          githubToken: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Generate SBOM
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          mkdir out
+          npx @cyclonedx/cyclonedx-npm --output-file out/sbom.json
+      - name: Upload SBOMs
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v5.0.1
+        with:
+          path: out
+          overwrite: 'true'
+      - name: Publish Container Image
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.githubToken }}
+          version: ${{ needs.version.outputs.version }}
+          imageName: ${{ inputs.imageName }}
+          organizationName: ${{ github.repository_owner }}
+          imageTitle: ${{ github.event.repository.name }}
+          imageDescription: ${{ github.event.repository.description }}
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
+          cosignKey: ${{secrets.cosignKey}}
+          cosignPassword: ${{secrets.cosignPassword}}
+      - name: Update ArgoCD
+        if: inputs.imageName != ''
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ github.event.repository.name }}

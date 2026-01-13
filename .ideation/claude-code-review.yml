@@ -1,0 +1,134 @@
+name: Claude Code Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "src/**/*.ts"
+    #   - "src/**/*.tsx"
+    #   - "src/**/*.js"
+    #   - "src/**/*.jsx"
+
+jobs:
+  claude-review:
+    # Optional: Filter by PR author
+    # if: |
+    #   github.event.pull_request.user.login == 'external-contributor' ||
+    #   github.event.pull_request.user.login == 'new-developer' ||
+    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request thoroughly, then produce TWO outputs:
+
+            ## 1. Human-Readable Summary
+            A brief summary for human reviewers covering:
+            - What the PR does
+            - Overall assessment (approve/request changes/comment)
+            - Key concerns if any
+
+            ## 2. Prompt for AI Agents
+            Format your detailed findings as a structured prompt that another AI agent can use to address the issues. Use this exact format:
+
+            ---
+            Please address the comments from this code review:
+
+            ## Overall Comments
+            - List any cross-cutting concerns (permissions blocks, error handling patterns, missing tests, etc.)
+
+            ## Individual Comments
+
+            ### Comment 1
+            <location>`path/to/file.ext:LINE_START-LINE_END`</location>
+            <code_context>
+            +name: Example Workflow
+            +
+            +on:
+            +  pull_request:
+            +    types: [opened, synchronize]
+            </code_context>
+
+            <issue_to_address>
+            **🔧 suggestion:** Brief title describing the improvement
+
+            Detailed explanation of WHY this matters and what the impact is.
+
+            ```suggestion
+            on:
+              pull_request:
+                types: [opened, synchronize, reopened, ready_for_review]
+            ```
+            </issue_to_address>
+
+            ### Comment 2
+            <location>`path/to/file.ext:LINE_START-LINE_END`</location>
+            <code_context>
+            +jobs:
+            +  my-job:
+            +    uses: org/repo/.github/workflows/reusable.yml@main
+            </code_context>
+
+            <issue_to_address>
+            **🚨 suggestion (security):** Pin reusable workflow to specific ref
+
+            Using `@main` lets upstream changes silently alter this pipeline, hurting reproducibility, audits, and potentially introducing security issues.
+
+            ```suggestion
+            jobs:
+              my-job:
+                # NOTE: Pin to a specific tag or commit SHA for reproducible runs
+                # Example with a tag:    ...reusable.yml@v1.2.3
+                # Example with a SHA:    ...reusable.yml@0123456789abcdef0123456789abcdef01234567
+                uses: org/repo/.github/workflows/reusable.yml@vX.Y.Z
+            ```
+
+            1. Replace `vX.Y.Z` with an actual tagged release or commit SHA from the source repo
+            2. Optionally, update the comment to reflect the specific version you chose
+            </issue_to_address>
+            ---
+
+            ## Severity Emoji Guide
+            Use these prefixes consistently:
+            - 🔧 **suggestion** - Nice-to-have improvements, non-blocking
+            - ⚠️ **warning** - Should fix, potential issues
+            - 🚨 **security** - Must fix, security implications
+            - 🐛 **bug** - Must fix, incorrect behavior
+
+            ## Guidelines for Structured Output
+            - Include enough code_context (with +/- diff markers) that an agent can locate the exact change
+            - Make suggestions copy-paste ready when possible
+            - Always pin workflow references to specific tags/SHAs, not floating branches
+            - For each issue, explain WHY it matters, not just WHAT to change
+            - Group related issues if they stem from the same root cause
+
+            ## Final Action
+            Use `gh pr review` with your Bash tool to leave your review:
+            - Use `gh pr review --approve` for LGTM reviews OR when previous issues have been fixed
+            - Use `gh pr review --comment` for suggestions and non-blocking feedback
+            - Use `gh pr review --request-changes` for critical issues that must be fixed
+
+            IMPORTANT: Check for previous reviews on this PR. If you previously requested changes and those issues have been addressed in the latest commits, you MUST approve the PR to clear the previous "changes requested" status.
+
+            You MUST end your review with exactly ONE of the above commands. If all issues are resolved, always approve.
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'

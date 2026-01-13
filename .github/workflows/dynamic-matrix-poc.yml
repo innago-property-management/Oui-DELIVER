@@ -1,0 +1,53 @@
+on:
+#  push: 
+#    branches-ignore:
+#      - main
+  workflow_dispatch:
+
+permissions: 
+  contents: read
+
+jobs:
+  create-array:
+    runs-on: ubuntu-latest
+    outputs:
+      file_list: ${{ steps.list_files.outputs.output_files }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: List Files and Create Array
+        id: list_files
+        run: |
+          FILES=$(ls -1 | tr '\n' ' ' | sed 's/ $/"/' | sed 's/ /","/g' | sed 's/^/"/')
+          echo "${FILES}"
+          echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
+      - name: Upload Array Output without matrix
+        uses: actions/github-script@v8
+        env:
+          FILES: ${{ env.FILES }}
+        with:
+          github-token: '${{ secrets.SEMVER_TOKEN }}'
+          script: |
+            const {FILES} = process.env;
+            console.log(FILES);
+            for (const f of FILES.split(',')) {
+            
+              await github.rest.repos.createDispatchEvent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event_type: 'create-array',
+                client_payload: { "text": "$f" }
+              });
+            }
+  
+  use-array:
+    runs-on: ubuntu-latest
+    needs: create-array
+    strategy:
+      matrix:
+        files: ${{ fromJSON(needs.create-array.outputs.file_list) }}
+    steps:
+      - name: Use Array Output
+        uses: ./.github/actions/echo
+        with: 
+          text: ${{ matrix.files }}

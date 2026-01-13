@@ -1,0 +1,95 @@
+# Kaizen Sweep Configuration
+# Repos are swept in a staggered fashion based on hour-of-week
+# Add/remove repos from active_repos to control which get swept
+
+# Sweep settings
+settings:
+  # How many repos to sweep per dispatch (per hour when scheduled)
+  repos_per_hour: 2
+  # Only sweep during these hours (UTC) - avoids overnight sweeps
+  # Set to null to sweep any hour
+  active_hours: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+  # Days to sweep (0=Monday, 6=Sunday) - null for all days
+  active_days: [0, 1, 2, 3, 4]  # Monday-Friday
+
+# Active repositories to sweep
+# Order matters - repos are selected based on (hour_index % total_repos)
+# 20 repos @ 2/hour = full cycle every 10 hours
+active_repos:
+  # C# Services - good candidates for code quality sweeps
+  - name: merlin-redisqueueservice
+    language: csharp
+
+  - name: merlin-main-job
+    language: csharp
+
+  - name: merlin-shared-service
+    language: csharp
+
+  - name: merlin
+    language: csharp
+
+  - name: Auth0Samples
+    language: csharp
+
+  - name: tenant-ledger-service
+    language: csharp
+
+  - name: innago-identity
+    language: csharp
+
+  - name: innago-property
+    language: csharp
+
+  - name: patch-runner
+    language: csharp
+
+  # TypeScript/JavaScript apps
+  - name: in-property-owner-app
+    language: typescript
+
+  - name: in-admin-app
+    language: typescript
+
+  - name: in-tenant-app
+    language: typescript
+
+  - name: innagoinsight-back
+    language: typescript
+
+  - name: innago-mobile
+    language: javascript
+
+  - name: cygnus
+    language: javascript
+
+  # Infrastructure repos - more conservative sweeps
+  - name: helm-charts
+    language: smarty
+    target_path: "charts/"
+
+  - name: argocd-shared
+    language: shell
+    target_path: "apps/"
+
+  # CI/CD - sweep ourselves!
+  - name: Oui-DELIVER
+    language: shell
+    target_path: ".github/"
+
+  # Chaos engineering
+  - name: litmus-chaos-hub
+    language: yaml
+    target_path: "experiments/"
+
+  # Elixir
+  - name: cygnus_supervisor
+    language: elixir
+
+# Per-repo overrides (optional)
+# Use repo name as key
+overrides:
+  # Example: be extra conservative with legacy code
+  # legacy-billing:
+  #   dry_run: true
+  #   target_path: "src/Legacy"

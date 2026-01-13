@@ -1,0 +1,83 @@
+name: merge-checks
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs: 
+      allowed_licenses_path:
+        required: true
+        description: "Path to the allowed licenses JSON file"
+        type: string
+      ignored_packages_path:
+        required: true
+        description: "Path to the ignored packages JSON file"
+        type: string
+    secrets: 
+      githubToken:
+        description: "Github token"
+        required: true
+
+permissions: 
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: GitLeaks
+        shell: bash
+        env: 
+          GITHUB_TOKEN: "${{ secrets.githubToken }}"
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace  --log-opts="-n 10"
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup Node
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: lts/*
+      - shell: bash
+        name: vulnerable
+        run: |
+          npm ci
+          npm audit --audit-level=high 2>&1 | tee vuln.log
+          cat vuln.log >> $GITHUB_STEP_SUMMARY
+  outdated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup Node
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+        with:
+          node-version: lts/*
+      - name: Install jq
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
+      - name: Outdated Tool
+        shell: bash
+        run: |
+          npm ci
+          npm outdated

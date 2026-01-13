@@ -1,0 +1,57 @@
+name: update-argocd-image.yaml
+on:
+  workflow_dispatch:
+    inputs:
+      imageName:
+        required: true
+        description: "Image Name."
+        type: string
+      argoCdRepoName:
+        required: true
+        description: "ArgoCD repo name."
+        type: string
+        default: ''
+      version:
+        required: true
+        description: "Version of the image to update"
+        type: string
+
+  workflow_call:
+    inputs:
+      imageName:
+        required: true
+        description: "Image Name."
+        type: string
+      argoCdRepoName:
+        required: true
+        description: "ArgoCD repo name."
+        type: string
+      version:
+        required: true
+        description: "Version of the image to update"
+        type: string
+
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  update-argocd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update ArgoCD
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ inputs.version }}
+          folderName: ${{ github.event.repository.name }}

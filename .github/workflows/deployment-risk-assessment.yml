@@ -1,0 +1,127 @@
+name: Deployment Risk Assessment (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+        description: 'Pull request number to assess'
+      base_branch:
+        required: false
+        type: string
+        default: 'main'
+        description: 'Base branch for comparison'
+      additional_context:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional requirements or constraints to add to the skill'
+    secrets:
+      anthropicKey:
+        required: true
+      mcpUrl:
+        required: true
+        description: 'URL of the MCP risk assessment service.'
+      githubToken:
+        required: true
+      wafApiKey:
+        required: true
+        description: 'x-api-key to allow passage through WAF'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  assess-deployment-risk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          fetch-depth: 0  # Full history for git diff analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/deployment-risk-workflow-client/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
+      - name: Check MCP risk assessment endpoint
+        run: |
+          echo "Testing MCP endpoint: ${{ secrets.mcpUrl }}/health"
+          
+          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            --header "x-api-key: ${{ secrets.wafApiKey }}" \
+            "${{ secrets.mcpUrl }}/health")
+          
+          echo "HTTP Status Code: $HTTP_CODE"
+          echo "Response Body:"
+          cat /tmp/response.txt
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::MCP health check failed with status $HTTP_CODE"
+            exit 1
+          fi
+          
+          echo "::notice::MCP endpoint is healthy"
+
+      - name: Load workflow client skill
+        id: skill
+        env:
+          # Use environment variables to safely handle content with special characters
+          ADDITIONAL_CONTEXT: ${{ inputs.additional_context }}
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/deployment-risk-workflow-client/SKILL.md)
+
+          # Append additional context if provided
+          if [ -n "$ADDITIONAL_CONTEXT" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"$ADDITIONAL_CONTEXT"
+          fi
+
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code Risk Assessment
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey }}
+          github_token: ${{ secrets.githubToken }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh:*)"]
+              }
+            }
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+            --mcp-config '{"mcpServers":{"deployment-risk":{"command":"npx","args":["-y","mcp-remote@latest","${{ secrets.mcpUrl }}/sse","--header","x-api-key ${{ secrets.wafApiKey }}"]}}}'
+          prompt: |
+            Assess the deployment risk for this pull request and post a comprehensive comment.
+
+            **PR Context:**
+            - Repository: ${{ github.repository }}
+            - PR Number: ${{ inputs.pr_number }}
+            - Base Branch: ${{ inputs.base_branch }}
+            - Head Branch: ${{ github.head_ref }}
+            - Author: ${{ github.event.pull_request.user.login }}
+            - Title: ${{ github.event.pull_request.title }}
+
+            **Your Task:**
+            1. Use the `start_risk_assessment` tool with the PR context above
+            2. Poll `get_risk_assessment` until the assessment is complete (max 5 minutes)
+            3. Format the results as a comprehensive PR comment following the skill template
+            4. Post the comment using the GitHub API
+

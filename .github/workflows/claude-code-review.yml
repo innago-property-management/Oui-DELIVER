@@ -1,0 +1,162 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_call:
+    inputs:
+      repository:
+        required: false
+        type: string
+        description: 'Repository in owner/name format'
+      pr_number:
+        required: true
+        type: number
+        description: 'Pull request number to review'
+      base_branch:
+        required: false
+        type: string
+        default: 'main'
+        description: 'Base branch for comparison'
+      review_focus:
+        required: false
+        type: string
+        default: 'comprehensive'
+        description: 'Review focus: comprehensive, security, performance, or style'
+      file_pattern:
+        required: false
+        type: string
+        default: '**/*'
+        description: 'Glob pattern for files to review (e.g., "src/**/*.ts")'
+      additional_context:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional context or constraints to add to the skill'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+concurrency:
+  group: claude-code-review-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  claude-code-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          fetch-depth: 0  # Full history for git diff analysis
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/claude-code-reviewer/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
+      - name: Load claude-code-reviewer skill
+        id: skill
+        env:
+          # Use environment variables to safely handle content with special characters
+          REVIEW_FOCUS: ${{ inputs.review_focus }}
+          FILE_PATTERN: ${{ inputs.file_pattern }}
+          ADDITIONAL_CONTEXT: ${{ inputs.additional_context }}
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/claude-code-reviewer/SKILL.md)
+
+          # Append review focus if not comprehensive
+          if [ "$REVIEW_FOCUS" != "comprehensive" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Review Focus\n\nFocus this review on **'"$REVIEW_FOCUS"'** aspects. While you should still note critical issues in other areas, prioritize detailed analysis of '"$REVIEW_FOCUS"'-related concerns.'
+          fi
+
+          # Append file pattern filter if specified
+          if [ "$FILE_PATTERN" != "**/*" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## File Filter\n\nLimit detailed review to files matching pattern: `'"$FILE_PATTERN"'`\n\nOther files should receive only high-level analysis.'
+          fi
+
+          # Append additional context if provided
+          if [ -n "$ADDITIONAL_CONTEXT" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"$ADDITIONAL_CONTEXT"
+          fi
+
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          # github_token commented out to use Claude's default identity instead of github-actions[bot]
+          # github_token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh:*)"]
+              }
+            }
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+          prompt: |
+            Review this pull request comprehensively and post your review.
+
+            **PR Context:**
+            - Repository: ${{ github.event_name == 'workflow_call' && inputs.repository || github.repository }}
+            - PR Number: ${{ github.event_name == 'workflow_call' && inputs.pr_number || github.event.pull_request.number }}
+            - Base Branch: ${{ github.event_name == 'workflow_call' && inputs.base_branch || github.event.pull_request.base.ref }}
+            - Head Branch: ${{ github.head_ref }}
+            - Author: ${{ github.event.pull_request.user.login }}
+            - Title: ${{ github.event.pull_request.title }}
+            - Files Changed: ${{ github.event.pull_request.changed_files }}
+            - Additions: +${{ github.event.pull_request.additions }}
+            - Deletions: -${{ github.event.pull_request.deletions }}
+
+            **Your Task:**
+            1. **Gather PR Context:**
+               - Use `gh pr view` with the PR number above to get PR details
+               - Use `gh pr diff` to get the full diff
+               - Use `gh pr list --search "is:open review:changes_requested"` to check if you previously requested changes
+
+            2. **Apply File Filtering:**
+               - Exclude test files, generated files, lock files (see skill for strategy)
+               - Focus on critical files: controllers, services, configs, migrations
+               - Use tiered approach based on PR size
+
+            3. **Analyze Changes:**
+               - Check for bugs, security issues, performance problems
+               - Verify code quality and best practices
+               - Look for well-implemented patterns (positive feedback)
+               - Check repository's CLAUDE.md for conventions
+
+            4. **Determine Review Action:**
+               - If you previously requested changes and issues are fixed → MUST approve
+               - If blocking issues found → request changes
+               - If only suggestions → comment
+               - If no issues → approve with positive feedback
+
+            5. **Generate Response:**
+               - Human-readable summary with findings
+               - "Prompt for AI Agents" section if issues found (expandable section with a markdown prompt to be pasted to the AI agent) 
+               - Clear severity indicators (🚨🐛⚠️🔧)
+
+            6. **Submit Review:**
+               Use `gh pr review` with the PR number above:
+               - `--approve` if issues fixed or no issues found
+               - `--request-changes` if blocking issues exist
+               - `--comment` for non-blocking suggestions only
+
+            **Important:** Check previous review state! If you previously requested changes and those issues are now resolved, you MUST approve to clear the "changes requested" status.

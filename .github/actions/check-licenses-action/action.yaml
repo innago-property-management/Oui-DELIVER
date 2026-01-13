@@ -1,0 +1,71 @@
+name: "Check Licenses"
+description: "Checks licenses against an allowed list and outputs a report artifact for each project"
+inputs:
+  allowed_licenses_path:
+    required: true
+    description: "Path to the allowed licenses JSON file"
+  ignored_packages_path:
+    required: true
+    description: "Path to the ignored packages JSON file"
+  githubToken:
+    required: true
+    description: "Github Token"
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      with:
+        dotnet-version: |
+          9.x
+          10.x
+    - name: Install jq
+      uses: dcarbone/install-jq-action@f0e10f46ff84f4d32178b4b76e1ef180b16f82c3 #v3.1.1
+    - name: Check Licenses for each project
+      shell: bash
+      env:
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
+        NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
+        ALLOWED_LICENSES_PATH: ${{ inputs.allowed_licenses_path }}
+        IGNORED_PACKAGES_PATH: ${{ inputs.ignored_packages_path }}
+      run: |
+        dotnet nuget add source \
+          --name "github" \
+          --username "$GHCR_USER" \
+          --password "$GHCR_TOKEN" \
+          --store-password-in-clear-text \
+          "https://nuget.pkg.github.com/innago-property-management/index.json"
+        
+        dotnet restore
+        dotnet tool install --global nuget-license || continue
+        PATH=/root/.dotnet/tools:$PATH
+        
+        solution=$(find . -type f -name '*.slnx')
+        
+        if [[ -z $solution ]]; then
+          solution=$(find . -type f -name '*.sln')
+        fi
+        
+        mkdir out
+        output_path="out/licenses.json"
+        nuget-license \
+         --input "$solution" \
+         --include-shared-projects \
+         --output jsonpretty \
+         --allowed-license-types "$ALLOWED_LICENSES_PATH" \
+         --ignored-packages "$IGNORED_PACKAGES_PATH" \
+         | tee "$output_path" \
+         | jq '.[] | select(.ValidationErrors != null)'
+    - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+      if: always()
+      name: table
+      id: table
+      with:
+        json_file_path: "out/licenses.json"
+    - name: Output to markdown
+      if: always()
+      shell: bash
+      run: echo "${{ steps.table.outputs.table }}" >> $GITHUB_STEP_SUMMARY

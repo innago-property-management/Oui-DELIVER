@@ -1,0 +1,165 @@
+name: Kaizen Sweep (Reusable)
+
+# IMPORTANT: This is a REUSABLE workflow. Do not trigger directly.
+# Use kaizen-sweep-caller.yml in your repo instead.
+#
+# Why: Running this workflow directly causes branches to be pushed
+# to the wrong repository. The caller workflow ensures the workflow
+# runs in the correct repository context.
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        required: true
+        type: string
+        description: 'Repository in owner/name format (must match github.repository)'
+      target_path:
+        required: false
+        type: string
+        description: 'Specific file or directory to sweep (optional)'
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+        description: 'If true, only report what would be changed without creating PR'
+      debug_mode:
+        required: false
+        type: boolean
+        default: false
+        description: 'If true, show full Claude output (may contain sensitive info)'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: false
+        description: 'GitHub token (defaults to GITHUB_TOKEN)'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  id-token: write
+
+# Concurrency: only one sweep per repo at a time, don't cancel in-progress
+# (we want sweeps to complete, not be interrupted)
+concurrency:
+  group: kaizen-sweep-${{ inputs.repository || github.event.inputs.repository || github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  kaizen-sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate repository context
+        run: |
+          if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
+            echo "ERROR: Repository mismatch!"
+            echo "  inputs.repository: ${{ inputs.repository }}"
+            echo "  github.repository: ${{ github.repository }}"
+            echo ""
+            echo "This workflow must run in the target repository's context."
+            echo "Use kaizen-sweep-caller.yml in the target repo instead."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/kaizen-sweep/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+          token: ${{ secrets.githubToken || secrets.ORG_NUGET_PUSH || secrets.GITHUB_TOKEN }}
+
+      - name: Load Kaizen Sweep Skill
+        id: skill
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-sweep/SKILL.md)
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Configure git
+        run: |
+          git config --global user.name "claude[bot]"
+          git config --global user.email "claude[bot]@users.noreply.github.com"
+
+      - name: Run Kaizen Sweep
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          # Use PAT with workflows permission for repos that have workflow files
+          github_token: ${{ secrets.githubToken || secrets.ORG_NUGET_PUSH || secrets.GITHUB_TOKEN }}
+          show_full_output: ${{ inputs.debug_mode || github.event.inputs.debug_mode || false }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]
+              }
+            }
+          prompt: |
+            **Repository:** ${{ github.repository }}
+            **Target Path:** ${{ inputs.target_path || 'auto-select based on complexity' }}
+            **Dry Run:** ${{ inputs.dry_run || false }}
+
+            You are performing a scheduled Kaizen Sweep. Your goal is to find ONE small, safe improvement and either:
+            - **If dry_run=false:** Create a PR with the fix
+            - **If dry_run=true:** Report what you would change without making changes
+
+            **Your Task:**
+
+            1. **Select a Target File:**
+               - If target_path is provided, use that
+               - Otherwise, find a file that would benefit from improvement:
+                 - Look for files with high complexity (long methods, deep nesting)
+                 - Check recently modified files that might have accumulated tech debt
+                 - Focus on source code files (.cs, .ts, .js, .py), not config files
+               - Use `find` and `wc -l` to identify candidates
+               - Use `grep` to find complexity indicators (nested ifs, long methods)
+
+            2. **Analyze the File:**
+               - Read the file content
+               - Identify ONE improvement opportunity following the skill guidelines
+               - The improvement must be:
+                 - Safe to merge in isolation
+                 - No behavior changes
+                 - Obviously beneficial
+                 - Low risk
+
+            3. **If No Improvement Found:**
+               - Output: `SKIP: <filename> - <reason>`
+               - Exit cleanly (this is expected and acceptable)
+
+            4. **If Improvement Found and dry_run=false:**
+               - Create a new branch: `kaizen-sweep/<brief-description>`
+               - Make the change using Edit tool
+               - Commit with message format:
+                 ```
+                 [kaizen-sweep] <brief description>
+
+                 Why: <one sentence explaining benefit>
+                 File: <path>
+
+                 Safe to merge independently. No functional changes.
+                 ```
+               - Push the branch
+               - Create a PR using `gh pr create`:
+                 - Title: `[kaizen-sweep] <brief description>`
+                 - Body: Explain the improvement and why it's safe
+
+            5. **If Improvement Found and dry_run=true:**
+               - Output what you would change
+               - Show the before/after diff
+               - Do not create branch or PR
+
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"

@@ -1,0 +1,61 @@
+name: Deployment Risk Assessment (Internal)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        required: true
+        description: "Pull Request number to assess"
+        type: number
+      base_branch:
+        required: true
+        description: "Base branch (e.g., main, develop)"
+        type: string
+        default: 'main'
+
+jobs:
+  preflight:
+    name: Preflight Checks
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check MCP risk assessment endpoint
+        run: |
+          echo "Testing MCP endpoint: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health"
+          
+          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+            --header "x-api-key: ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}" \
+            "${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health")
+          
+          echo "HTTP Status Code: $HTTP_CODE"
+          echo "Response Body:"
+          cat /tmp/response.txt
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::MCP health check failed with status $HTTP_CODE"
+            exit 1
+          fi
+          
+          echo "::notice::MCP endpoint is healthy"
+
+  assess-risk:
+    name: Assess Deployment Risk
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    needs:
+      - preflight
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
+    with:
+      pr_number: ${{ github.event.pull_request.number || fromJSON(inputs.pr_number) }}
+      base_branch: ${{ github.event.pull_request.base.ref || inputs.base_branch }}
+    secrets:
+      anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
+      mcpUrl: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}
+      githubToken: ${{ secrets.GITHUB_TOKEN }}
+      wafApiKey: ${{ secrets.DEPLOYMENT_RISK_WAF_KEY }}
+
+

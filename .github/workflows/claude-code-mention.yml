@@ -1,0 +1,128 @@
+name: Claude Code Mention Handler
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+  workflow_call:
+    inputs:
+      repository:
+        required: false
+        type: string
+        description: 'Repository in owner/name format'
+      event_type:
+        required: true
+        type: string
+        description: 'Type of event (issue_comment, pull_request_review_comment, pull_request_review, or issues)'
+      comment_body:
+        required: true
+        type: string
+        description: 'Body of the comment or issue containing @claude mention'
+      pr_number:
+        required: false
+        type: number
+        description: 'PR number if event is PR-related'
+      issue_number:
+        required: false
+        type: number
+        description: 'Issue number if event is issue-related'
+      additional_context:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional context or constraints to add to the skill'
+    secrets:
+      anthropicKey:
+        required: true
+      githubToken:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-mention-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  claude-mention-response:
+    runs-on: ubuntu-latest
+    # Only run if @claude is mentioned (for direct triggers) or always run for workflow_call
+    if: |
+      github.event_name == 'workflow_call' ||
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          fetch-depth: 1  # Shallow clone, we just need current state
+
+      - name: Sparse checkout Oui-DELIVER skill
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: main
+          sparse-checkout: |
+            .github/skills/claude-mention-responder/SKILL.md
+          sparse-checkout-cone-mode: false
+          path: oui-deliver-checkout
+
+      - name: Load claude-mention-responder skill
+        id: skill
+        env:
+          # Use environment variables to safely handle content with special characters
+          ADDITIONAL_CONTEXT: ${{ inputs.additional_context }}
+        run: |
+          SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/claude-mention-responder/SKILL.md)
+
+          # Append additional context if provided
+          if [ -n "$ADDITIONAL_CONTEXT" ]; then
+            SKILL_CONTENT="${SKILL_CONTENT}"$'\n\n## Additional Context\n\n'"$ADDITIONAL_CONTEXT"
+          fi
+
+          echo "skill_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Code Mention Handler
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(gh:*)"]
+              }
+            }
+          claude_args: |
+            --system-prompt "${{ steps.skill.outputs.skill_content }}"
+          prompt: |
+            You've been mentioned (@claude) in a GitHub ${{ github.event_name == 'workflow_call' && inputs.event_type || github.event_name }}.
+
+            **Event Context:**
+            - Repository: ${{ github.event_name == 'workflow_call' && inputs.repository || github.repository }}
+            - Event Type: ${{ github.event_name == 'workflow_call' && inputs.event_type || github.event_name }}
+            - PR Number: ${{ github.event_name == 'workflow_call' && inputs.pr_number || github.event.issue.pull_request && github.event.issue.number || github.event.pull_request.number || 'N/A' }}
+            - Issue Number: ${{ github.event_name == 'workflow_call' && inputs.issue_number || github.event.issue.number || 'N/A' }}
+
+            **User's Request:**
+            ```
+            ${{ github.event_name == 'workflow_call' && inputs.comment_body || github.event.comment.body || github.event.issue.body }}
+            ```
+
+            **Your Task:**
+            1. Understand what the user is asking for in the context of this mention
+            2. Gather necessary information using available tools (gh CLI, Read, Grep, Glob)
+            3. Provide a helpful, contextual response following your skill instructions
+            4. Include a "Prompt for AI Agents" section ONLY if there are concrete code changes to make
+            5. Post your response using gh CLI (use the issue/PR number from context above)
+
+            Remember: You are advisory, not executive. Suggest and guide, but don't make direct changes.

@@ -1,0 +1,24 @@
+name: "Build Angular"
+description: "Builds a node app"
+inputs:
+  node_version:
+    required: true
+    description: "Node version to resolve node/npm dependency"
+    
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: ${{ inputs.node_version }}
+    
+    - name: Install dependencies
+      shell: bash
+      run: npm install --legacy-peer-deps
+    
+    - name: Build
+      shell: bash
+      # Increased from 8192 (8GB) to 16384 (16GB)
+      run: NODE_OPTIONS=--max-old-space-size=16384 npm run build:production
+#      run: NODE_OPTIONS=--max-old-space-size=8192 npm run build:production

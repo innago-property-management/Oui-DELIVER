@@ -1,0 +1,219 @@
+name: merge-checks
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      allowed_licenses_path:
+        required: true
+        description: "Path to the allowed licenses JSON file"
+        type: string
+      ignored_packages_path:
+        required: true
+        description: "Path to the ignored packages JSON file"
+        type: string
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: GitLeaks
+        shell: bash
+        env:
+          GITHUB_TOKEN: "${{ secrets.githubToken }}"
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace  --log-opts="-n 10"
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        with:
+          dotnet-version: |
+            9.x
+            10.x
+      - name: Install xq
+        run: pip install yq==3.2.3
+      - name: Cache NuGet packages
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # 5.0.1
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - shell: bash
+        name: vulnerable
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.githubToken }}
+          NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+
+          dotnet nuget add source \
+            --name "github" \
+            --username "$GHCR_USER" \
+            --password "$GHCR_TOKEN" \
+            --store-password-in-clear-text \
+            "https://nuget.pkg.github.com/innago-property-management/index.json"
+
+          dotnet restore
+
+          # Extract suppressed advisory URLs from all .csproj files
+          # Handles both single and array NuGetAuditSuppress entries
+          SUPPRESSED_URLS=$(find . -name '*.csproj' -exec xq -r \
+            '.Project.ItemGroup[]? | select(.NuGetAuditSuppress != null) | 
+             if .NuGetAuditSuppress | type == "array" then .NuGetAuditSuppress[]."@Include" 
+             else .NuGetAuditSuppress."@Include" end' {} \; 2>/dev/null | sort -u || true)
+
+          if [[ -n "$SUPPRESSED_URLS" ]]; then
+            echo "### Suppressed Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$SUPPRESSED_URLS" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.log
+          echo "### Vulnerability Scan Results (Raw)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Extract all advisory IDs and filter vuln.log in a single pass
+          echo "$SUPPRESSED_URLS" | grep -oE 'GHSA-[a-z0-9-]+' | sort -u > suppressed_ids.txt || true
+          if [[ -s suppressed_ids.txt ]]; then
+            grep -v -F -f suppressed_ids.txt vuln.log > filtered_vuln.log || cp vuln.log filtered_vuln.log
+          else
+            cp vuln.log filtered_vuln.log
+          fi
+          rm -f suppressed_ids.txt
+
+          echo "### Vulnerability Scan Results (After Suppressions)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat filtered_vuln.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Match lines with severity AND advisory URL (not just header containing "Severity")
+          if grep -iE '(critical|high|moderate|low).*github.com/advisories/' filtered_vuln.log; then
+            COUNT=$(grep -ciE '(critical|high|moderate|low).*github.com/advisories/' filtered_vuln.log)
+            echo "Security: Vulnerabilities found (after exclusions): $COUNT"
+            exit 1
+          else
+            echo "No vulnerabilities found (or all suppressed)"
+            exit 0
+          fi
+  outdated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        with:
+          dotnet-version: "9.x"
+      - name: Cache NuGet packages
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # 5.0.1
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - name: Install jq
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
+      - name: Outdated Tool
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.githubToken }}
+          NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
+        shell: bash
+        run: |
+          dotnet nuget add source \
+            --name "github" \
+            --username "$GHCR_USER" \
+            --password "$GHCR_TOKEN" \
+            --store-password-in-clear-text \
+            "https://nuget.pkg.github.com/innago-property-management/index.json"
+
+          PATH=/root/.dotnet/tools:$PATH
+          dotnet tool install --global dotnet-outdated-tool
+
+          dotnet restore
+
+          solution=$(find . -type f -name '*.slnx')
+
+          if [[ -z $solution ]]; then
+            solution=$(find . -type f -name '*.sln')
+          fi
+
+          dotnet outdated "${solution}" \
+            --output outdated.json \
+            --fail-on-updates \
+            --version-lock Major
+      - shell: bash
+        if: failure()
+        name: Transform
+        run: |
+          jq '
+            [
+              .Projects[] | {
+                "name": .Name,
+                "package": (.TargetFrameworks[0].Dependencies[] | .Name),
+                "severity": (.TargetFrameworks[0].Dependencies[] | .UpgradeSeverity),
+                "latestVersion": (.TargetFrameworks[0].Dependencies[] | .LatestVersion)
+              }
+            ]
+          ' outdated.json > outdatedProjects.json
+      - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+        if: failure()
+        name: table
+        id: table
+        with:
+          json_file_path: outdatedProjects.json
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check licenses
+        uses: innago-property-management/Oui-DELIVER/.github/actions/check-licenses-action@main
+        with:
+          allowed_licenses_path: "${{ inputs.allowed_licenses_path }}"
+          ignored_packages_path: "${{ inputs.ignored_packages_path }}"
+          githubToken: "${{ secrets.githubToken }}"
+      - name: Upload licenses
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4
+        with:
+          path: out
+          overwrite: "true"
+  enforceWarningsAsErrors:
+    name: Check Warnings as Errors
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@main

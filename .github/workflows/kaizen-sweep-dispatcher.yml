@@ -1,0 +1,161 @@
+name: Kaizen Sweep Dispatcher
+
+on:
+  schedule:
+    # Run hourly during business hours (will be filtered by config)
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      hour_override:
+        description: 'Force specific hour of week (0-167). Leave empty for current hour.'
+        required: false
+        type: string
+      repo_override:
+        description: 'Force specific repo (ignores hour calculation). Format: repo-name'
+        required: false
+        type: string
+      dry_run:
+        description: 'Run in dry-run mode (no PRs created)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write  # Needed to dispatch workflows
+
+jobs:
+  select-and-dispatch:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.select.outputs.repos }}
+      hour: ${{ steps.select.outputs.hour }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate inputs
+        run: |
+          # Validate repo_override if provided (alphanumeric, hyphens, underscores only)
+          REPO_OVERRIDE="${{ inputs.repo_override }}"
+          if [ -n "$REPO_OVERRIDE" ]; then
+            if ! echo "$REPO_OVERRIDE" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+              echo "Error: repo_override must contain only alphanumeric characters, hyphens, and underscores"
+              exit 1
+            fi
+          fi
+
+          # Validate hour_override if provided (0-167)
+          HOUR_OVERRIDE="${{ inputs.hour_override }}"
+          if [ -n "$HOUR_OVERRIDE" ]; then
+            if ! echo "$HOUR_OVERRIDE" | grep -qE '^[0-9]+$'; then
+              echo "Error: hour_override must be a number"
+              exit 1
+            fi
+            if [ "$HOUR_OVERRIDE" -lt 0 ] || [ "$HOUR_OVERRIDE" -gt 167 ]; then
+              echo "Error: hour_override must be between 0 and 167"
+              exit 1
+            fi
+          fi
+
+      - name: Select repositories for this hour
+        id: select
+        env:
+          REPO_OVERRIDE: ${{ inputs.repo_override }}
+          HOUR_OVERRIDE: ${{ inputs.hour_override }}
+        run: |
+          cd .github/kaizen-sweep
+
+          # Handle repo override
+          if [ -n "$REPO_OVERRIDE" ]; then
+            # Single repo override - use jq for proper JSON construction
+            REPOS_JSON=$(echo "$REPO_OVERRIDE" | jq -Rc '[.]')
+            echo "repos=$REPOS_JSON" >> $GITHUB_OUTPUT
+            echo "hour=manual" >> $GITHUB_OUTPUT
+            echo "Using manual repo override: $REPO_OVERRIDE"
+            exit 0
+          fi
+
+          # Calculate hour or use override
+          HOUR_ARG=""
+          if [ -n "$HOUR_OVERRIDE" ]; then
+            HOUR_ARG="--hour $HOUR_OVERRIDE"
+          fi
+
+          # Run selection script with JSON output for matrix
+          REPOS_JSON=$(python select-repos.py $HOUR_ARG --json --debug)
+
+          # Extract just the names as a JSON array for the matrix
+          REPO_NAMES=$(echo "$REPOS_JSON" | python -c "import sys, json; repos = json.load(sys.stdin); print(json.dumps([r['name'] for r in repos]))")
+
+          # Get hour info
+          HOUR=$(python -c "
+          from datetime import datetime, timezone
+          dt = datetime.now(timezone.utc)
+          day_index = dt.weekday()
+          hour_of_day = dt.hour
+          hour_of_week = (day_index * 24) + hour_of_day
+          day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+          print(f'{hour_of_week} ({day_names[day_index]} {hour_of_day:02d}:00 UTC)')
+          ")
+
+          echo "repos=$REPO_NAMES" >> $GITHUB_OUTPUT
+          echo "hour=$HOUR" >> $GITHUB_OUTPUT
+
+          if [ "$REPO_NAMES" = "[]" ]; then
+            echo "No repos selected for this hour (outside active window or no repos configured)"
+          else
+            echo "Selected repos: $REPO_NAMES"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Kaizen Sweep Dispatch Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Hour:** ${{ steps.select.outputs.hour }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Selected Repos:** ${{ steps.select.outputs.repos || 'None (outside active window)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
+
+  dispatch-sweeps:
+    needs: select-and-dispatch
+    if: needs.select-and-dispatch.outputs.repos != '' && needs.select-and-dispatch.outputs.repos != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo: ${{ fromJson(needs.select-and-dispatch.outputs.repos) }}
+      fail-fast: false
+      max-parallel: 2  # Don't overwhelm the API
+    steps:
+      - name: Dispatch sweep for ${{ matrix.repo }}
+        env:
+          GH_TOKEN: ${{ secrets.ORG_NUGET_PUSH || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Dispatching Kaizen Sweep for: ${{ matrix.repo }}"
+          TARGET_REPO="innago-property-management/${{ matrix.repo }}"
+
+          # Dispatch the kaizen-sweep workflow IN THE TARGET REPO
+          # The target repo must have kaizen-sweep.yml (copy from kaizen-sweep-caller.yml)
+          if gh workflow run kaizen-sweep.yml \
+            --repo "$TARGET_REPO" \
+            -f dry_run="${{ inputs.dry_run || 'false' }}" 2>/dev/null; then
+            echo "✓ Dispatched sweep for $TARGET_REPO"
+          else
+            echo "✗ Failed to dispatch for $TARGET_REPO"
+            echo "  The repo may not have kaizen-sweep.yml workflow."
+            echo "  Copy kaizen-sweep-caller.yml from Oui-DELIVER to enable."
+          fi
+
+      - name: Record dispatch
+        run: |
+          echo "## Dispatched: ${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository: innago-property-management/${{ matrix.repo }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Dry Run: ${{ inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
