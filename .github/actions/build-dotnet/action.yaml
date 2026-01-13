@@ -1,6 +1,10 @@
 name: "Build DotNet"
 description: "Builds a solution"
 inputs:
+  organization:
+    description: 'GitHub organization for package registry'
+    required: false
+    default: 'innago-property-management'
   version:
     required: true
     description: "Version"
@@ -54,7 +58,7 @@ runs:
         # Add GitHub Packages source (auth handled by NuGetPackageSourceCredentials_github env var)
         dotnet nuget add source \
           --name "github" \
-          "https://nuget.pkg.github.com/innago-property-management/index.json"
+          "https://nuget.pkg.github.com/${{ inputs.organization }}/index.json"
         
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"

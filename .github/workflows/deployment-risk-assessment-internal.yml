@@ -48,7 +48,7 @@ jobs:
       pull-requests: write
     needs:
       - preflight
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/deployment-risk-assessment.yml@v2
     with:
       pr_number: ${{ github.event.pull_request.number || fromJSON(inputs.pr_number) }}
       base_branch: ${{ github.event.pull_request.base.ref || inputs.base_branch }}

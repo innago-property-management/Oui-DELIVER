@@ -107,7 +107,7 @@ permissions:
 
 jobs:
   version:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@v2
     permissions:
       contents: read
 
@@ -125,7 +125,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Build Next.js
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-nextjs@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-nextjs@v2
         with:
           version: ${{ needs.version.outputs.version }}
           node_version: "${{ inputs.node_version }}"
@@ -150,7 +150,7 @@ jobs:
 
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -170,7 +170,7 @@ jobs:
 
       - name: Update ArgoCD
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@v2
         with:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}
@@ -180,7 +180,7 @@ jobs:
   generate_provenance:
     needs: build
     if: inputs.slsa && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yaml@main
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yaml@v2
     permissions:
       attestations: write
       id-token: write

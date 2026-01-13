@@ -60,22 +60,39 @@ jobs:
 
       - name: Check MCP risk assessment endpoint
         run: |
-          echo "Testing MCP endpoint: ${{ secrets.mcpUrl }}/health"
-          
-          HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
-            --header "x-api-key: ${{ secrets.wafApiKey }}" \
-            "${{ secrets.mcpUrl }}/health")
-          
-          echo "HTTP Status Code: $HTTP_CODE"
-          echo "Response Body:"
-          cat /tmp/response.txt
-          
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "::error::MCP health check failed with status $HTTP_CODE"
-            exit 1
-          fi
-          
-          echo "::notice::MCP endpoint is healthy"
+          set -euo pipefail
+
+          MAX_RETRIES=3
+          RETRY_DELAY=2
+          ENDPOINT="${{ secrets.mcpUrl }}/health"
+
+          echo "Testing MCP endpoint: $ENDPOINT"
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $attempt of $MAX_RETRIES..."
+
+            HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              --header "x-api-key: ${{ secrets.wafApiKey }}" \
+              "$ENDPOINT") || HTTP_CODE=000
+
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              echo "::notice::MCP endpoint is healthy"
+              exit 0
+            fi
+
+            echo "::warning::Health check returned HTTP $HTTP_CODE"
+
+            if [ "$attempt" -lt $MAX_RETRIES ]; then
+              WAIT=$((RETRY_DELAY ** attempt))
+              echo "Retrying in ${WAIT}s..."
+              sleep $WAIT
+            fi
+          done
+
+          echo "::error::MCP health check failed after $MAX_RETRIES attempts"
+          exit 1
 
       - name: Load workflow client skill
         id: skill

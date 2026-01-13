@@ -11,6 +11,9 @@ settings:
   active_hours: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
   # Days to sweep (0=Monday, 6=Sunday) - null for all days
   active_days: [0, 1, 2, 3, 4]  # Monday-Friday
+  # Require this topic on repos for sweeps to be dispatched (opt-in mechanism)
+  # Set to null to sweep all repos in active_repos regardless of topics
+  require_topic: "kaizen-enabled"
 
 # Active repositories to sweep
 # Order matters - repos are selected based on (hour_index % total_repos)
