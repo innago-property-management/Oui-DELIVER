@@ -62,7 +62,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up cosign
-      uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # 3.8.1
+      uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0 (installs cosign v3.x)
     - name: Login to GitHub Container Registry
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # 3.4.0
       with:
@@ -173,7 +173,7 @@ runs:
         cosign sign --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" --recursive=true --yes=true
 
         echo "Verifying signature..."
-        cosign verify --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" || {
+        cosign verify --key "${COSIGN_PUBLIC_KEY_URL}" "${IMAGE}@${VERIFIED_DIGEST}" || {
           echo "::error::Signature verification failed!"
           exit 1
         }
@@ -184,6 +184,7 @@ runs:
         COSIGN_PASSWORD: ${{ inputs.cosignPassword }}
         IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}"
         VERIFIED_DIGEST: ${{ steps.verify-image.outputs.verified_digest }}
+        COSIGN_PUBLIC_KEY_URL: "https://raw.githubusercontent.com/innago-property-management/innago-cosign-public-key/refs/heads/main/cosign.pub"
       
     - name: sign migrations image
       if: ${{ inputs.migrationsDockerfilePath != '' }}
@@ -199,7 +200,7 @@ runs:
         cosign sign --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" --recursive=true --yes=true
 
         echo "Verifying migrations signature..."
-        cosign verify --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" || {
+        cosign verify --key "${COSIGN_PUBLIC_KEY_URL}" "${IMAGE}@${DIGEST}" || {
           echo "::error::Migrations signature verification failed!"
           exit 1
         }
@@ -210,3 +211,4 @@ runs:
         COSIGN_PASSWORD: ${{ inputs.cosignPassword }}
         IMAGE: "${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}-migrations"
         DIGEST: ${{ steps.publish-migrations.outputs.digest }}
+        COSIGN_PUBLIC_KEY_URL: "https://raw.githubusercontent.com/innago-property-management/innago-cosign-public-key/refs/heads/main/cosign.pub"
