@@ -19,6 +19,10 @@ on:
         description: "Regex pattern of allowed licenses"
         type: string
         default: "MIT|Apache|BSD|ISC|PSF|Python|Unlicense|CC0|0BSD|WTFPL"
+    secrets:
+      githubToken:
+        description: "GitHub token for API access"
+        required: false
 
 permissions:
   contents: read
@@ -45,6 +49,8 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: GitLeaks
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
         run: |
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
           WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
