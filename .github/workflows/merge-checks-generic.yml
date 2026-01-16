@@ -1,0 +1,72 @@
+name: merge-checks-generic
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      shellcheck_enabled:
+        required: false
+        description: "Enable ShellCheck for shell scripts (default: true)"
+        type: boolean
+        default: true
+      shellcheck_scandir:
+        required: false
+        description: "Directory to scan for shell scripts (default: .)"
+        type: string
+        default: "."
+      shellcheck_severity:
+        required: false
+        description: "Minimum severity to report: error, warning, info, style (default: warning)"
+        type: string
+        default: "warning"
+    secrets:
+      githubToken:
+        description: "GitHub token for API access"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: GitLeaks
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace --log-opts="-n 10"
+
+  shellcheck:
+    if: ${{ inputs.shellcheck_enabled }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          scandir: ${{ inputs.shellcheck_scandir }}
+          severity: ${{ inputs.shellcheck_severity }}
