@@ -62,6 +62,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "auto-pr-user[bot],dependabot[bot]"
           # github_token commented out to use Claude's default identity instead of github-actions[bot]
           # github_token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
           settings: |
