@@ -111,13 +111,16 @@ runs:
           echo "has_go_module=false" >> $GITHUB_OUTPUT
         fi
 
-        # Deno/JSR (jsr.json or deno.json with name)
+        # Deno/JSR (jsr.json or deno.json/deno.jsonc with name)
         if [[ -f "jsr.json" ]]; then
           echo "has_jsr=true" >> $GITHUB_OUTPUT
           echo "::notice::Detected: JSR package (Deno)"
         elif [[ -f "deno.json" ]] && jq -e '.name' deno.json >/dev/null 2>&1; then
           echo "has_jsr=true" >> $GITHUB_OUTPUT
-          echo "::notice::Detected: JSR package (Deno)"
+          echo "::notice::Detected: JSR package (Deno via deno.json)"
+        elif [[ -f "deno.jsonc" ]] && jq -e '.name' deno.jsonc >/dev/null 2>&1; then
+          echo "has_jsr=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: JSR package (Deno via deno.jsonc)"
         else
           echo "has_jsr=false" >> $GITHUB_OUTPUT
         fi

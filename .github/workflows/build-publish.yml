@@ -93,6 +93,7 @@ jobs:
 
   detect:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -131,7 +132,11 @@ jobs:
           testProjectPath: "${{ inputs.testProjectPath }}"
 
       - name: Build only (no tests - Docker-only release)
-        # For Docker-only on release, just build without tests
+        # Skip tests on release for Docker-only repos:
+        # - Tests already passed during PR (required check)
+        # - No packages to publish that could break downstream consumers
+        # - Docker image will be rebuilt anyway
+        # Cost savings: ~2-5 min per deployment for services with test suites
         if: needs.detect.outputs.skip_tests == 'true'
         shell: bash
         env:
@@ -143,7 +148,8 @@ jobs:
           dotnet nuget add source \
             --name "github" \
             "https://nuget.pkg.github.com/innago-property-management/index.json" || true
-          dotnet build --configuration Release
+          dotnet restore
+          dotnet build --configuration Release --no-restore
 
       - name: Push Nuget packages
         if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && needs.detect.outputs.has_nuget == 'true'
