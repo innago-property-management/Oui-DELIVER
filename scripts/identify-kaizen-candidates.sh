@@ -69,8 +69,24 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Calculate cutoff date
-CUTOFF_DATE=$(date -v-${DAYS}d +%Y-%m-%d 2>/dev/null || date -d "-${DAYS} days" +%Y-%m-%d)
+# Validate gh CLI is available
+if ! command -v gh &>/dev/null; then
+    echo "Error: gh CLI is not installed. Install from https://cli.github.com/" >&2
+    exit 1
+fi
+
+if ! gh auth status &>/dev/null; then
+    echo "Error: gh CLI is not authenticated. Run 'gh auth login'" >&2
+    exit 1
+fi
+
+# Calculate cutoff date (macOS uses -v, Linux uses -d)
+CUTOFF_DATE=$(date -v-${DAYS}d +%Y-%m-%d 2>/dev/null || date -d "-${DAYS} days" +%Y-%m-%d 2>/dev/null || echo "")
+
+if [[ -z "$CUTOFF_DATE" ]]; then
+    echo "Error: Failed to calculate cutoff date. Check your system's date command." >&2
+    exit 1
+fi
 
 log() {
     if ! $JSON_OUTPUT; then

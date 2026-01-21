@@ -51,6 +51,17 @@ for arg in "$@"; do
     esac
 done
 
+# Validate gh CLI is available
+if ! command -v gh &>/dev/null; then
+    echo "Error: gh CLI is not installed. Install from https://cli.github.com/" >&2
+    exit 1
+fi
+
+if ! gh auth status &>/dev/null; then
+    echo "Error: gh CLI is not authenticated. Run 'gh auth login'" >&2
+    exit 1
+fi
+
 # Colors for terminal output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -76,6 +76,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Validate gh CLI is available
+if ! command -v gh &>/dev/null; then
+    echo "Error: gh CLI is not installed. Install from https://cli.github.com/" >&2
+    exit 1
+fi
+
+if ! gh auth status &>/dev/null; then
+    echo "Error: gh CLI is not authenticated. Run 'gh auth login'" >&2
+    exit 1
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -85,7 +96,8 @@ NC='\033[0m'
 
 # Get list of repos to enable
 if [[ -n "$EXPLICIT_REPOS" ]]; then
-    REPOS=($EXPLICIT_REPOS)
+    # Use read with IFS to properly handle the space-separated list
+    IFS=' ' read -ra REPOS <<< "$EXPLICIT_REPOS"
     echo -e "${CYAN}Using explicit repo list: ${#REPOS[@]} repos${NC}"
 else
     echo -e "${CYAN}Finding candidates (--days $DAYS${LANG_FILTER:+ --lang $LANG_FILTER})...${NC}"
@@ -94,7 +106,8 @@ else
     [[ -n "$LANG_FILTER" ]] && IDENTIFY_ARGS="$IDENTIFY_ARGS --lang $LANG_FILTER"
 
     CANDIDATES_JSON=$("$IDENTIFY_SCRIPT" $IDENTIFY_ARGS)
-    REPOS=($(echo "$CANDIDATES_JSON" | jq -r '.candidates[].name'))
+    # Use mapfile for safer array population from jq output
+    mapfile -t REPOS < <(echo "$CANDIDATES_JSON" | jq -r '.candidates[].name')
 
     echo -e "Found ${GREEN}${#REPOS[@]}${NC} candidates"
 fi
