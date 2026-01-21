@@ -67,12 +67,32 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-  
+
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   version:
     uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@v2
-    permissions: 
+    permissions:
       contents: read
+
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      has_docker: ${{ steps.detect.outputs.has_docker }}
+      has_npm: ${{ steps.detect.outputs.has_npm }}
+      has_package: ${{ steps.detect.outputs.has_package }}
+      is_release: ${{ steps.detect.outputs.is_release }}
+      skip_tests: ${{ steps.detect.outputs.skip_tests }}
+    steps:
+      - name: Detect build type
+        id: detect
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@v2
+
   build:
     runs-on: Linux-x64__16-core__64GB-RAM
     permissions:
@@ -81,7 +101,7 @@ jobs:
       id-token: write
       attestations: write
       pull-requests: write
-    needs: version
+    needs: [version, detect]
     timeout-minutes: 360
     steps:
       - name: Checkout
@@ -154,3 +174,19 @@ jobs:
           repoName: ${{ inputs.argoCdRepoName }}
           version: ${{ needs.version.outputs.version }}
           folderName: ${{ github.event.repository.name }}
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skip Tests | ${{ needs.detect.outputs.skip_tests }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Has Package | ${{ needs.detect.outputs.has_package }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Has Docker | ${{ needs.detect.outputs.has_docker }} |" >> $GITHUB_STEP_SUMMARY
