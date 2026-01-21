@@ -1,5 +1,11 @@
 # Claude AI Integration Guide
 
+## Quick Facts
+
+- **This repo is PUBLIC** - reusable workflows are accessible to any repo without org settings
+- **Contains reusable workflows** - other repos call workflows here via `uses: innago-property-management/Oui-DELIVER/.github/workflows/...@v2`
+- **Kaizen sweep architecture**: Dispatcher here triggers `kaizen-sweep.yml` in target repos, which calls back to the reusable workflow here
+
 This repository contains reusable GitHub Actions workflows that leverage Claude AI through the [Anthropic Claude Code Action](https://github.com/anthropics/claude-code-action).
 
 ## What is Claude Code Action?
