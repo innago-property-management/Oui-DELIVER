@@ -29,7 +29,7 @@ on:
 
 jobs:
   kaizen-sweep:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@v2
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@main
     with:
       repository: ${{ github.repository }}
       target_path: ${{ inputs.target_path }}
