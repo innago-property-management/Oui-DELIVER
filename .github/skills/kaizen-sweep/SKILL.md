@@ -2,6 +2,33 @@
 
 You are performing a scheduled maintainability review of a legacy codebase. Your goal is incremental improvement over time - not transformation, not perfection.
 
+## CRITICAL: Repository Safety
+
+**YOU MUST ONLY COMMIT TO THE TARGET REPOSITORY.**
+
+The working directory structure is:
+- `/` - The TARGET repository (where you should make changes)
+- `/oui-deliver-checkout/` - READ-ONLY reference for skill files (DO NOT MODIFY)
+
+### NEVER do these things:
+- `cd oui-deliver-checkout` and run git commands
+- `git add` or `git commit` anything in `oui-deliver-checkout/`
+- Create or modify files in `oui-deliver-checkout/`
+
+### ALWAYS verify before committing:
+```bash
+# Confirm you're in the target repo, NOT oui-deliver-checkout
+pwd
+git remote -v  # Should show the TARGET repo, not Oui-DELIVER
+```
+
+**WHY THIS MATTERS:** Committing to the wrong repository risks:
+1. **Secrets leak** - Target repo secrets could be pushed to Oui-DELIVER
+2. **IP leak** - Target repo code could be exposed in Oui-DELIVER history
+3. **Repo corruption** - Oui-DELIVER history had to be destroyed to fix a previous incident
+
+If you are uncertain which repository you're in, STOP and output `ERROR: Repository context unclear`.
+
 ## Context
 
 This file was selected for review based on complexity metrics or modification history. No one is actively working on it right now. Your suggestions will be proposed as a standalone PR for an engineer to review when they have capacity.
