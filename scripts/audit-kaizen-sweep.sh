@@ -109,10 +109,11 @@ for REPO in $REPOS; do
     # Check for issues
     ISSUES=()
 
-    # Check ref (should be @main, not @v2 or SHA)
-    if ! echo "$WORKFLOW_CONTENT" | grep -q "Oui-DELIVER/.github/workflows/kaizen-sweep.yml@main"; then
+    # Check ref (should use EXPECTED_REF, not @v2 or SHA)
+    EXPECTED_REF_PATTERN="Oui-DELIVER/.github/workflows/kaizen-sweep.yml${EXPECTED_REF}"
+    if ! echo "$WORKFLOW_CONTENT" | grep -q "$EXPECTED_REF_PATTERN"; then
         ACTUAL_REF=$(echo "$WORKFLOW_CONTENT" | grep -o "Oui-DELIVER/.github/workflows/kaizen-sweep.yml@[^[:space:]]*" | sed 's/.*@//' || echo "unknown")
-        ISSUES+=("uses: @$ACTUAL_REF (expected: @main)")
+        ISSUES+=("uses: @$ACTUAL_REF (expected: $EXPECTED_REF)")
     fi
 
     # Check permissions
@@ -165,47 +166,56 @@ done
 log ""
 
 # Summary
-TOTAL=${#COMPLIANT_REPOS[@]}+${#DRIFT_REPOS[@]}+${#MISSING_REPOS[@]}
 TOTAL=$((${#COMPLIANT_REPOS[@]} + ${#DRIFT_REPOS[@]} + ${#MISSING_REPOS[@]}))
 
 if $JSON_OUTPUT; then
-    # Build JSON output
-    COMPLIANT_JSON=$(printf '%s\n' "${COMPLIANT_REPOS[@]}" | jq -R . | jq -s .)
-    DRIFT_JSON="["
-    FIRST=true
-    for REPO in "${DRIFT_REPOS[@]}"; do
-        if ! $FIRST; then DRIFT_JSON+=","; fi
-        FIRST=false
-        ISSUES_STR="${DRIFT_DETAILS[$REPO]}"
-        ISSUES_ARRAY=$(echo "$ISSUES_STR" | tr ';' '\n' | jq -R . | jq -s .)
-        DRIFT_JSON+="{\"repo\":\"$REPO\",\"issues\":$ISSUES_ARRAY}"
-    done
-    DRIFT_JSON+="]"
+    # Build JSON output using jq for proper escaping
+    COMPLIANT_JSON=$(printf '%s\n' "${COMPLIANT_REPOS[@]}" | jq -R . | jq -s '.')
 
-    MISSING_JSON="["
-    FIRST=true
-    for REPO in "${MISSING_REPOS[@]}"; do
-        if ! $FIRST; then MISSING_JSON+=","; fi
-        FIRST=false
-        MISSING_JSON+="{\"repo\":\"$REPO\",\"issues\":[\"${DRIFT_DETAILS[$REPO]}\"]}"
-    done
-    MISSING_JSON+="]"
+    # Build drift array with proper escaping via jq
+    DRIFT_JSON=$(
+        for REPO in "${DRIFT_REPOS[@]}"; do
+            ISSUES_STR="${DRIFT_DETAILS[$REPO]}"
+            ISSUES_ARRAY=$(echo "$ISSUES_STR" | tr ';' '\n' | jq -R . | jq -s '.')
+            jq -n --arg repo "$REPO" --argjson issues "$ISSUES_ARRAY" '{"repo": $repo, "issues": $issues}'
+        done | jq -s '.'
+    )
+    # Handle empty drift array
+    [[ -z "$DRIFT_JSON" || "$DRIFT_JSON" == "null" ]] && DRIFT_JSON="[]"
 
-    cat <<EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "org": "$ORG",
-  "compliant": $COMPLIANT_JSON,
-  "drift": $DRIFT_JSON,
-  "missing": $MISSING_JSON,
-  "summary": {
-    "total": $TOTAL,
-    "compliant": ${#COMPLIANT_REPOS[@]},
-    "drift": ${#DRIFT_REPOS[@]},
-    "missing": ${#MISSING_REPOS[@]}
-  }
-}
-EOF
+    # Build missing array with proper escaping via jq
+    MISSING_JSON=$(
+        for REPO in "${MISSING_REPOS[@]}"; do
+            jq -n --arg repo "$REPO" --arg issue "${DRIFT_DETAILS[$REPO]}" '{"repo": $repo, "issues": [$issue]}'
+        done | jq -s '.'
+    )
+    # Handle empty missing array
+    [[ -z "$MISSING_JSON" || "$MISSING_JSON" == "null" ]] && MISSING_JSON="[]"
+
+    # Assemble final JSON with jq for proper structure
+    jq -n \
+        --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg org "$ORG" \
+        --argjson compliant "$COMPLIANT_JSON" \
+        --argjson drift "$DRIFT_JSON" \
+        --argjson missing "$MISSING_JSON" \
+        --argjson total "$TOTAL" \
+        --argjson compliant_count "${#COMPLIANT_REPOS[@]}" \
+        --argjson drift_count "${#DRIFT_REPOS[@]}" \
+        --argjson missing_count "${#MISSING_REPOS[@]}" \
+        '{
+            timestamp: $timestamp,
+            org: $org,
+            compliant: $compliant,
+            drift: $drift,
+            missing: $missing,
+            summary: {
+                total: $total,
+                compliant: $compliant_count,
+                drift: $drift_count,
+                missing: $missing_count
+            }
+        }'
 else
     log "================================"
     log "Kaizen Sweep Audit - $(date +%Y-%m-%d)"
