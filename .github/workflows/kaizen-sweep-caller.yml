@@ -8,6 +8,8 @@ name: Kaizen Sweep
 permissions:
   contents: write
   pull-requests: write
+  issues: read
+  id-token: write
 
 on:
   workflow_dispatch:
