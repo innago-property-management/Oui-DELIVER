@@ -60,6 +60,21 @@ WORKFLOW_CONTENT=$(base64 -i "$WORKFLOW_TEMPLATE")
 EXISTING_SHA=$(gh api "repos/$TARGET_REPO/contents/.github/workflows/kaizen-sweep.yml" --jq '.sha' 2>/dev/null || echo "")
 
 if $CREATE_PR; then
+    BRANCH_NAME="add-kaizen-sweep-workflow"
+
+    # Check if PR already exists for this branch
+    EXISTING_PR=$(gh pr list --repo "$TARGET_REPO" --head "$BRANCH_NAME" --json url --jq '.[0].url // empty' 2>/dev/null || echo "")
+    if [[ -n "$EXISTING_PR" ]]; then
+        echo "PR already exists: $EXISTING_PR"
+        exit 0
+    fi
+
+    # Check if remote branch exists and delete it (stale from previous failed attempt)
+    if gh api "repos/$TARGET_REPO/git/refs/heads/$BRANCH_NAME" &>/dev/null; then
+        echo "Cleaning up stale branch..."
+        gh api "repos/$TARGET_REPO/git/refs/heads/$BRANCH_NAME" -X DELETE &>/dev/null || true
+    fi
+
     echo "Creating PR for workflow..."
 
     # Clone, branch, commit, push, PR
@@ -68,7 +83,7 @@ if $CREATE_PR; then
 
     git clone --depth 1 "git@github.com:$TARGET_REPO.git" repo
     cd repo
-    git checkout -b add-kaizen-sweep-workflow
+    git checkout -b "$BRANCH_NAME"
 
     mkdir -p .github/workflows
     cp "$WORKFLOW_TEMPLATE" .github/workflows/kaizen-sweep.yml
@@ -81,7 +96,7 @@ workflow from Oui-DELIVER for instant org-wide updates.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
-    git push -u origin add-kaizen-sweep-workflow
+    git push -u origin "$BRANCH_NAME"
 
     PR_URL=$(gh pr create \
         --title "feat: add kaizen-sweep workflow" \
