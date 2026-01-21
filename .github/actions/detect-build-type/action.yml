@@ -1,0 +1,151 @@
+name: Detect Build Type
+description: Detect if repo produces packages (NuGet, npm, PyPI, Go, JSR) or is Docker-only
+
+outputs:
+  has_docker:
+    description: "Repository has a Dockerfile"
+    value: ${{ steps.detect.outputs.has_docker }}
+  has_nuget:
+    description: "Repository produces NuGet packages (.NET)"
+    value: ${{ steps.detect.outputs.has_nuget }}
+  has_npm:
+    description: "Repository produces npm packages (Node)"
+    value: ${{ steps.detect.outputs.has_npm }}
+  has_pypi:
+    description: "Repository produces PyPI packages (Python)"
+    value: ${{ steps.detect.outputs.has_pypi }}
+  has_go_module:
+    description: "Repository is a Go module/library"
+    value: ${{ steps.detect.outputs.has_go_module }}
+  has_jsr:
+    description: "Repository produces JSR packages (Deno)"
+    value: ${{ steps.detect.outputs.has_jsr }}
+  has_package:
+    description: "Repository produces ANY publishable package"
+    value: ${{ steps.detect.outputs.has_package }}
+  is_release:
+    description: "Running on default branch or tag"
+    value: ${{ steps.context.outputs.is_release }}
+  skip_tests:
+    description: "Safe to skip tests (Docker-only on release branch)"
+    value: ${{ steps.decide.outputs.skip_tests }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Sparse checkout for detection
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          *.csproj
+          **/*.csproj
+          package.json
+          pyproject.toml
+          setup.py
+          go.mod
+          deno.json
+          deno.jsonc
+          jsr.json
+          Dockerfile
+          cmd/
+        sparse-checkout-cone-mode: false
+
+    - name: Detect release context
+      id: context
+      shell: bash
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]] || \
+           [[ "${{ github.ref }}" == "refs/heads/master" ]] || \
+           [[ "${{ github.ref }}" == refs/heads/${{ github.event.repository.default_branch }} ]] || \
+           [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "is_release=true" >> $GITHUB_OUTPUT
+        else
+          echo "is_release=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Detect build types
+      id: detect
+      shell: bash
+      run: |
+        # Docker
+        if [[ -f "Dockerfile" ]]; then
+          echo "has_docker=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: Dockerfile"
+        else
+          echo "has_docker=false" >> $GITHUB_OUTPUT
+        fi
+
+        # .NET packages (IsPackable=true in csproj)
+        if grep -rq "<IsPackable>true</IsPackable>" --include="*.csproj" . 2>/dev/null; then
+          echo "has_nuget=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: NuGet package (.NET)"
+        else
+          echo "has_nuget=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Node packages (package.json without private:true)
+        if [[ -f "package.json" ]]; then
+          if ! jq -e '.private == true' package.json >/dev/null 2>&1; then
+            echo "has_npm=true" >> $GITHUB_OUTPUT
+            echo "::notice::Detected: npm package (Node)"
+          else
+            echo "has_npm=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "has_npm=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Python packages (pyproject.toml or setup.py)
+        if [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then
+          echo "has_pypi=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: PyPI package (Python)"
+        else
+          echo "has_pypi=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Go module (go.mod but no cmd/ directory = library)
+        if [[ -f "go.mod" ]] && [[ ! -d "cmd" ]]; then
+          echo "has_go_module=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: Go module/library"
+        else
+          echo "has_go_module=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Deno/JSR (jsr.json or deno.json/deno.jsonc with name)
+        if [[ -f "jsr.json" ]]; then
+          echo "has_jsr=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: JSR package (Deno)"
+        elif [[ -f "deno.json" ]] && jq -e '.name' deno.json >/dev/null 2>&1; then
+          echo "has_jsr=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: JSR package (Deno via deno.json)"
+        elif [[ -f "deno.jsonc" ]] && jq -e '.name' deno.jsonc >/dev/null 2>&1; then
+          echo "has_jsr=true" >> $GITHUB_OUTPUT
+          echo "::notice::Detected: JSR package (Deno via deno.jsonc)"
+        else
+          echo "has_jsr=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Aggregate: has ANY publishable package
+        HAS_PACKAGE=false
+        for type in nuget npm pypi go_module jsr; do
+          if grep -q "has_${type}=true" $GITHUB_OUTPUT 2>/dev/null; then
+            HAS_PACKAGE=true
+            break
+          fi
+        done
+        echo "has_package=${HAS_PACKAGE}" >> $GITHUB_OUTPUT
+
+    - name: Decide test skip
+      id: decide
+      shell: bash
+      run: |
+        # Skip tests on release if Docker-only (no packages to publish)
+        if [[ "${{ steps.context.outputs.is_release }}" == "true" ]] && \
+           [[ "${{ steps.detect.outputs.has_docker }}" == "true" ]] && \
+           [[ "${{ steps.detect.outputs.has_package }}" == "false" ]]; then
+          echo "skip_tests=true" >> $GITHUB_OUTPUT
+          echo "::notice::Decision: Skip tests (Docker-only on release, tests passed in PR)"
+        else
+          echo "skip_tests=false" >> $GITHUB_OUTPUT
+          echo "::notice::Decision: Run tests"
+        fi
