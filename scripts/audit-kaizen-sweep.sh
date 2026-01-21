@@ -169,28 +169,36 @@ log ""
 TOTAL=$((${#COMPLIANT_REPOS[@]} + ${#DRIFT_REPOS[@]} + ${#MISSING_REPOS[@]}))
 
 if $JSON_OUTPUT; then
-    # Build JSON output using jq for proper escaping
-    COMPLIANT_JSON=$(printf '%s\n' "${COMPLIANT_REPOS[@]}" | jq -R . | jq -s '.')
+    # Build JSON output with defensive empty array checks
+    if [[ ${#COMPLIANT_REPOS[@]} -eq 0 ]]; then
+        COMPLIANT_JSON="[]"
+    else
+        COMPLIANT_JSON=$(printf '%s\n' "${COMPLIANT_REPOS[@]}" | jq -R . | jq -s '.')
+    fi
 
     # Build drift array with proper escaping via jq
-    DRIFT_JSON=$(
-        for REPO in "${DRIFT_REPOS[@]}"; do
-            ISSUES_STR="${DRIFT_DETAILS[$REPO]}"
-            ISSUES_ARRAY=$(echo "$ISSUES_STR" | tr ';' '\n' | jq -R . | jq -s '.')
-            jq -n --arg repo "$REPO" --argjson issues "$ISSUES_ARRAY" '{"repo": $repo, "issues": $issues}'
-        done | jq -s '.'
-    )
-    # Handle empty drift array
-    [[ -z "$DRIFT_JSON" || "$DRIFT_JSON" == "null" ]] && DRIFT_JSON="[]"
+    if [[ ${#DRIFT_REPOS[@]} -eq 0 ]]; then
+        DRIFT_JSON="[]"
+    else
+        DRIFT_JSON=$(
+            for REPO in "${DRIFT_REPOS[@]}"; do
+                ISSUES_STR="${DRIFT_DETAILS[$REPO]}"
+                ISSUES_ARRAY=$(echo "$ISSUES_STR" | tr ';' '\n' | jq -R . | jq -s '.')
+                jq -n --arg repo "$REPO" --argjson issues "$ISSUES_ARRAY" '{"repo": $repo, "issues": $issues}'
+            done | jq -s '.'
+        )
+    fi
 
     # Build missing array with proper escaping via jq
-    MISSING_JSON=$(
-        for REPO in "${MISSING_REPOS[@]}"; do
-            jq -n --arg repo "$REPO" --arg issue "${DRIFT_DETAILS[$REPO]}" '{"repo": $repo, "issues": [$issue]}'
-        done | jq -s '.'
-    )
-    # Handle empty missing array
-    [[ -z "$MISSING_JSON" || "$MISSING_JSON" == "null" ]] && MISSING_JSON="[]"
+    if [[ ${#MISSING_REPOS[@]} -eq 0 ]]; then
+        MISSING_JSON="[]"
+    else
+        MISSING_JSON=$(
+            for REPO in "${MISSING_REPOS[@]}"; do
+                jq -n --arg repo "$REPO" --arg issue "${DRIFT_DETAILS[$REPO]}" '{"repo": $repo, "issues": [$issue]}'
+            done | jq -s '.'
+        )
+    fi
 
     # Assemble final JSON with jq for proper structure
     jq -n \

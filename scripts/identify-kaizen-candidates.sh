@@ -25,6 +25,7 @@ DAYS=30
 JSON_OUTPUT=false
 LANG_FILTER=""
 INCLUDE_ALL=false
+LIMIT=200
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -44,8 +45,12 @@ while [[ $# -gt 0 ]]; do
             INCLUDE_ALL=true
             shift
             ;;
+        --limit)
+            LIMIT="$2"
+            shift 2
+            ;;
         --help|-h)
-            echo "Usage: $0 [--days N] [--json] [--lang LANG] [--all]"
+            echo "Usage: $0 [--days N] [--json] [--lang LANG] [--all] [--limit N]"
             echo ""
             echo "Identify repos that are candidates for kaizen-sweep enablement."
             echo ""
@@ -54,6 +59,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --json      Output results as JSON"
             echo "  --lang LANG Filter by primary language"
             echo "  --all       Include repos with no recent activity"
+            echo "  --limit N   Max repos to fetch from GitHub (default: 200)"
             exit 0
             ;;
         *)
@@ -76,7 +82,7 @@ log "Fetching repos from $ORG..."
 log ""
 
 # Fetch all repos with relevant metadata
-REPOS_JSON=$(gh repo list "$ORG" --limit 200 --json name,pushedAt,primaryLanguage,repositoryTopics,isArchived,description)
+REPOS_JSON=$(gh repo list "$ORG" --limit "$LIMIT" --json name,pushedAt,primaryLanguage,repositoryTopics,isArchived,description)
 
 # Build jq filter
 JQ_FILTER='
