@@ -85,7 +85,7 @@ jobs:
     steps:
       - name: Detect build type
         id: detect
-        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@main
 
   build:
     runs-on: ubuntu-latest
