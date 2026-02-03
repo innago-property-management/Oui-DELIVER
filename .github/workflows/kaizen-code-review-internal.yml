@@ -22,7 +22,7 @@ jobs:
       pull-requests: write
       issues: read
       id-token: write
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-code-review.yml@v2
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-code-review.yml@main
     with:
       pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
       repository: ${{ github.repository }}

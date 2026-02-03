@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update ArgoCD
-        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
         with:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}

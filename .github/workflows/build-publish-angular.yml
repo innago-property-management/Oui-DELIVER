@@ -74,7 +74,7 @@ permissions:
 
 jobs:
   version:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@v2
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
     permissions:
       contents: read
 
@@ -127,7 +127,7 @@ jobs:
       - name: UI Build
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
           npm_token: ${{ secrets.npm_token }}
           node_version: "${{ inputs.node_version }}"
@@ -153,7 +153,7 @@ jobs:
       #     overwrite: 'true'
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -169,7 +169,7 @@ jobs:
           cosignPassword: ${{secrets.cosignPassword}}
       - name: Update ArgoCD
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
         with:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}
