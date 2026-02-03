@@ -198,7 +198,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Check licenses
-        uses: innago-property-management/Oui-DELIVER/.github/actions/check-licenses-action@v2
+        uses: innago-property-management/Oui-DELIVER/.github/actions/check-licenses-action@main
         with:
           allowed_licenses_path: "${{ inputs.allowed_licenses_path }}"
           ignored_packages_path: "${{ inputs.ignored_packages_path }}"
@@ -210,4 +210,4 @@ jobs:
           overwrite: "true"
   enforceWarningsAsErrors:
     name: Check Warnings as Errors
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@v2
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@main
