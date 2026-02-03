@@ -132,6 +132,7 @@ SKIP: <filename> - <one sentence reason>
 ```
 
 Valid skip reasons:
+- "Repository already has open Kaizen PR - allowing time for review"
 - "No obvious improvements without broader context"
 - "File is too coupled; changes risk unintended side effects"
 - "Improvements would be subjective or style-based"
@@ -148,14 +149,23 @@ Skipping is a valid and expected outcome. Not every file needs work.
 
 ### Phase 4: Implementation (dry_run=false only)
 
-1. Create branch:
+1. **Check for existing Kaizen PRs** (collision prevention):
+   ```bash
+   # Skip sweep if any open Kaizen PR already exists
+   if gh pr list --state open --json headRefName --jq '.[].headRefName' | grep -q "^kaizen-sweep"; then
+     echo "SKIP: Repository already has open Kaizen PR - allowing time for review"
+     exit 0
+   fi
+   ```
+
+2. Create branch:
    ```bash
    git checkout -b kaizen-sweep/<brief-description>
    ```
 
-2. Make the change using Edit tool
+3. Make the change using Edit tool
 
-3. Commit with message format:
+4. Commit with message format:
    ```
    [kaizen-sweep] <brief description>
 
@@ -165,12 +175,12 @@ Skipping is a valid and expected outcome. Not every file needs work.
    Safe to merge independently. No functional changes.
    ```
 
-4. Push branch:
+5. Push branch:
    ```bash
    git push -u origin kaizen-sweep/<brief-description>
    ```
 
-5. Create PR:
+6. Create PR:
    ```bash
    gh pr create --title "[kaizen-sweep] <brief description>" --body "$(cat <<'EOF'
    ## Kaizen Sweep Improvement
