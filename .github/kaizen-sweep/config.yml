@@ -5,7 +5,7 @@
 # Sweep settings
 settings:
   # How many repos to sweep per dispatch (per hour when scheduled)
-  repos_per_hour: 2
+  repos_per_hour: 1
   # Only sweep during these hours (UTC) - avoids overnight sweeps
   # Set to null to sweep any hour
   active_hours: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
@@ -17,25 +17,55 @@ settings:
 
 # Active repositories to sweep
 # Order matters - repos are selected based on (hour_index % total_repos)
-# 20 repos @ 2/hour = full cycle every 10 hours
+# ~50 repos @ 1/hour = full cycle every ~50 hours (~1 sweep/repo/week)
 active_repos:
-  # C# Services - good candidates for code quality sweeps
+  # C# Services - core platform
+  - name: merlin
+    language: csharp
+
+  - name: merlin-shared-service
+    language: csharp
+
   - name: merlin-redisqueueservice
     language: csharp
 
   - name: merlin-main-job
     language: csharp
 
-  - name: merlin-shared-service
+  - name: merlin-creditreporting-job
+    language: shell
+
+  - name: merlin-quickbook-job
     language: csharp
 
-  - name: merlin
+  - name: merlin-invoicejob
     language: csharp
 
-  - name: Auth0Samples
+  - name: merlin-latefeejob
+    language: csharp
+
+  - name: merlin-solrredisqueueservice
+    language: csharp
+
+  - name: merlin-invoicesyncqueueservice
+    language: csharp
+
+  - name: merlin-schedulejob
     language: csharp
 
   - name: tenant-ledger-service
+    language: csharp
+
+  - name: innago-finance
+    language: csharp
+
+  - name: innago-expense-ledger
+    language: csharp
+
+  - name: innago-lease
+    language: csharp
+
+  - name: innago-income
     language: csharp
 
   - name: innago-identity
@@ -44,7 +74,67 @@ active_repos:
   - name: innago-property
     language: csharp
 
+  - name: innago-application
+    language: csharp
+
+  - name: innago-marketplace
+    language: csharp
+
+  - name: innago-chat
+    language: csharp
+
+  - name: innago-poselfsignup
+    language: csharp
+
+  - name: innago-reporting
+    language: csharp
+
+  - name: innago-renter-insurance
+    language: csharp
+
+  - name: innago-orchestrator
+    language: csharp
+
+  - name: innago-dripengine
+    language: csharp
+
+  - name: Innago-Payment-Vault
+    language: csharp
+
+  - name: notification
+    language: csharp
+
+  - name: innago-inapp-notification
+    language: csharp
+
+  - name: innago-maintenance
+    language: csharp
+
+  - name: innago-neo4j-service
+    language: csharp
+
+  - name: innago-marketing
+    language: csharp
+
+  - name: public-api
+    language: csharp
+
+  - name: accelrent
+    language: csharp
+
   - name: patch-runner
+    language: csharp
+
+  - name: codebase-indexer
+    language: csharp
+
+  - name: llm-adapter-service
+    language: csharp
+
+  - name: Auth0Samples
+    language: csharp
+
+  - name: property
     language: csharp
 
   # TypeScript/JavaScript apps
@@ -57,14 +147,52 @@ active_repos:
   - name: in-tenant-app
     language: typescript
 
+  - name: in-auth-app
+    language: typescript
+
+  - name: in-lease-template-app
+    language: typescript
+
+  - name: innagocom-front
+    language: typescript
+
   - name: innagoinsight-back
     language: typescript
+
+  - name: innago-ui-atoms
+    language: typescript
+
+  - name: qc-link-frontend
+    language: typescript
+
+  - name: qc-link-backend
+    language: typescript
+
+  - name: cygnus-control-surface
+    language: typescript
+
+  - name: mcp-langchain-bridge
+    language: typescript
+
+  - name: innagocom-back
+    language: javascript
 
   - name: innago-mobile
     language: javascript
 
   - name: cygnus
     language: javascript
+
+  # Python
+  - name: ratatoskr
+    language: python
+
+  - name: ashildr
+    language: python
+
+  # Elixir
+  - name: cygnus_supervisor
+    language: elixir
 
   # Infrastructure repos - more conservative sweeps
   - name: helm-charts
@@ -84,10 +212,6 @@ active_repos:
   - name: litmus-chaos-hub
     language: yaml
     target_path: "experiments/"
-
-  # Elixir
-  - name: cygnus_supervisor
-    language: elixir
 
 # Per-repo overrides (optional)
 # Use repo name as key
