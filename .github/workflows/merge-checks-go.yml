@@ -1,0 +1,142 @@
+name: merge-checks-go
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      go_version:
+        required: false
+        description: "Go version to use (default: stable)"
+        type: string
+        default: "stable"
+      golangci_lint_version:
+        required: false
+        description: "golangci-lint version (default: latest)"
+        type: string
+        default: "latest"
+      test_flags:
+        required: false
+        description: "Additional flags for go test (e.g. -count=1 -race)"
+        type: string
+        default: "-race -count=1"
+      working_directory:
+        required: false
+        description: "Working directory for Go commands (default: repo root)"
+        type: string
+        default: "."
+    secrets:
+      githubToken:
+        description: "GitHub token for API access"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: GitLeaks
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace --log-opts="-n 10"
+
+  build-and-test:
+    name: Build and Test (Go ${{ inputs.go_version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: ${{ inputs.go_version }}
+          cache-dependency-path: ${{ inputs.working_directory }}/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test ${{ inputs.test_flags }} ./...
+
+  lint:
+    name: Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: ${{ inputs.go_version }}
+          cache-dependency-path: ${{ inputs.working_directory }}/go.sum
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: ${{ inputs.golangci_lint_version }}
+          working-directory: ${{ inputs.working_directory }}
+
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: ${{ inputs.go_version }}
+          cache-dependency-path: ${{ inputs.working_directory }}/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: |
+          echo "### Go Vulnerability Report" >> $GITHUB_STEP_SUMMARY
+          govulncheck ./... 2>&1 | tee vuln.log
+          cat vuln.log >> $GITHUB_STEP_SUMMARY
