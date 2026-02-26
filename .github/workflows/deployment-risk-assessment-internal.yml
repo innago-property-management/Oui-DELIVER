@@ -1,8 +1,9 @@
 name: Deployment Risk Assessment (Internal)
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  # Disabled: needs TLC before re-enabling on PRs
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
