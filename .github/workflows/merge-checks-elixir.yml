@@ -1,0 +1,103 @@
+name: merge-checks-elixir
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      elixir_version:
+        required: false
+        description: "Elixir version to use (default: 1.19)"
+        type: string
+        default: "1.19"
+      otp_version:
+        required: false
+        description: "Erlang/OTP version to use (default: 28)"
+        type: string
+        default: "28"
+      credo_strict:
+        required: false
+        description: "Run credo in strict mode (default: true)"
+        type: boolean
+        default: true
+    secrets:
+      githubToken:
+        description: "GitHub token for API access"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: semgrep-action
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    container:
+      image: ghcr.io/gitleaks/gitleaks:latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: GitLeaks
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.githubToken }}
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
+          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
+          git config --global --add safe.directory "$WORK_DIR"
+          git config --global --add safe.directory "$CONTAINER_WORK_DIR"
+          gitleaks git --verbose --log-level trace --log-opts="-n 10"
+
+  build-and-test:
+    name: Build and Test (Elixir ${{ inputs.elixir_version }} / OTP ${{ inputs.otp_version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@e6d7c94229049569db56a7ad5a540c051a010af9 # v1.20.4
+        with:
+          elixir-version: ${{ inputs.elixir_version }}
+          otp-version: ${{ inputs.otp_version }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ inputs.otp_version }}-${{ inputs.elixir_version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ inputs.otp_version }}-${{ inputs.elixir_version }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+        env:
+          MIX_ENV: test
+
+      - name: Run tests
+        run: mix test
+        env:
+          MIX_ENV: test
+
+      - name: Run Credo
+        run: mix credo ${{ inputs.credo_strict && '--strict' || '' }}
+        continue-on-error: true

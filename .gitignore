@@ -3,3 +3,11 @@
 .idea/
 fnox.toml
 research/github-security-rotation/
+
+# Coordinator agent experiments (local only)
+.coordinator-heartbeat.*
+.coordinator-monitor.sh
+.coordinator-heartbeat.sh
+coordinator-control.sh
+COORDINATOR.md
+QUICKREF-COORDINATOR.md
