@@ -109,7 +109,7 @@ jobs:
         run: |
           if [ "${{ inputs.use_bun }}" = "true" ]; then
             # Bun audit is built-in
-            bun pm scan > audit.log
+            bun audit > audit.log
           else
             # Build audit-ci command
             AUDIT_CMD="npx --yes audit-ci"
