@@ -33,6 +33,11 @@ on:
         description: "Minimum severity to fail: moderate, high, critical"
         type: string
         default: "moderate"
+      use_bun:
+        required: false
+        description: "Whether to use Bun instead of NPM"
+        type: boolean
+        default: false
     secrets:
       githubToken:
         description: "Github token"
@@ -80,40 +85,54 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
+        if: ${{ !inputs.use_bun }}
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v3.9.1
         with:
           node-version: lts/*
 
+      - name: Setup Bun
+        if: ${{ inputs.use_bun }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install dependencies
-        run: npm ci
-
-      - name: Security audit with audit-ci
-        shell: bash
         run: |
-          # Build audit-ci command
-          AUDIT_CMD="npx --yes audit-ci"
-
-          # Use custom config if provided
-          if [ -n "${{ inputs.audit_config_path }}" ] && [ -f "${{ inputs.audit_config_path }}" ]; then
-            AUDIT_CMD="$AUDIT_CMD --config ${{ inputs.audit_config_path }}"
+          if [ "${{ inputs.use_bun }}" = "true" ]; then
+            bun install --frozen-lockfile
           else
-            # Use input parameters for thresholds
-            case "${{ inputs.audit_level }}" in
-              moderate)
-                AUDIT_CMD="$AUDIT_CMD --moderate"
-                ;;
-              high)
-                AUDIT_CMD="$AUDIT_CMD --high"
-                ;;
-              critical)
-                AUDIT_CMD="$AUDIT_CMD --critical"
-                ;;
-            esac
+            npm ci
           fi
 
-          # Run audit and capture output
-          echo "Running: $AUDIT_CMD"
-          $AUDIT_CMD 2>&1 | tee audit.log
+      - name: Security audit
+        shell: bash
+        run: |
+          if [ "${{ inputs.use_bun }}" = "true" ]; then
+            # Bun audit is built-in
+            bun pm audit > audit.log
+          else
+            # Build audit-ci command
+            AUDIT_CMD="npx --yes audit-ci"
+
+            # Use custom config if provided
+            if [ -n "${{ inputs.audit_config_path }}" ] && [ -f "${{ inputs.audit_config_path }}" ]; then
+              AUDIT_CMD="$AUDIT_CMD --config ${{ inputs.audit_config_path }}"
+            else
+              # Use input parameters for thresholds
+              case "${{ inputs.audit_level }}" in
+                moderate)
+                  AUDIT_CMD="$AUDIT_CMD --moderate"
+                  ;;
+                high)
+                  AUDIT_CMD="$AUDIT_CMD --high"
+                  ;;
+                critical)
+                  AUDIT_CMD="$AUDIT_CMD --critical"
+                  ;;
+              esac
+            fi
+            $AUDIT_CMD 2>&1 | tee audit.log
+          fi
 
           # Add to step summary
           echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
@@ -128,12 +147,24 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
+        if: ${{ !inputs.use_bun }}
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v3.9.1
         with:
           node-version: lts/*
 
+      - name: Setup Bun
+        if: ${{ inputs.use_bun }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ "${{ inputs.use_bun }}" = "true" ]; then
+            bun install --frozen-lockfile
+          else
+            npm ci
+          fi
 
       - name: Check outdated dependencies with npm-check-updates
         shell: bash
@@ -160,7 +191,11 @@ jobs:
             cat outdated.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "To update: \`npx npm-check-updates -u\` then \`npm install\`" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ inputs.use_bun }}" = "true" ]; then
+              echo "To update: \`bun x npm-check-updates -u\` then \`bun install\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "To update: \`npx npm-check-updates -u\` then \`npm install\`" >> $GITHUB_STEP_SUMMARY
+            fi
             exit $EXIT_CODE
           }
 
