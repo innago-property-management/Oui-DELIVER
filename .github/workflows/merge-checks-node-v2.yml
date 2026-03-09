@@ -170,7 +170,7 @@ jobs:
         shell: bash
         run: |
           # Build npm-check-updates command
-          NCU_CMD="npx --yes npm-check-updates --errorLevel 2"
+          NCU_CMD="npx --yes npm-check-updates --errorLevel 1"
 
           # Add target filtering
           if [ -n "${{ inputs.outdated_target }}" ]; then
