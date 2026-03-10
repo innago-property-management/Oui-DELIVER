@@ -26,7 +26,7 @@ jobs:
         env:
           FILES: ${{ env.FILES }}
         with:
-          github-token: '${{ secrets.SEMVER_TOKEN }}'
+          github-token: '${{ secrets.SEMVER_TOKEN_NO_EXPIRATION }}'
           script: |
             const {FILES} = process.env;
             console.log(FILES);
