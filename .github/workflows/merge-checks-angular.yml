@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
@@ -70,7 +70,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
@@ -89,7 +89,7 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
         with:
           node-version: ${{ inputs.node_version }}
           cache: 'npm'
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
@@ -117,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v3.9.1
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v3.9.1
         with:
           node-version: lts/*
       - name: Install jq
@@ -138,7 +138,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
@@ -154,7 +154,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@v6.2.0
+      - uses: actions/setup-node@v6.3.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
       - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
