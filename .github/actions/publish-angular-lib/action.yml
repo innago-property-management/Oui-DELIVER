@@ -33,7 +33,7 @@ runs:
       working-directory: ${{ inputs.workspace_path }}
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
-      run: npm ci
+      run: npm ci --legacy-peer-deps
 
     - name: Detect changed library versions
       id: detect-changes
