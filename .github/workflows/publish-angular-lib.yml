@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 2
 
       - name: Publish Angular Libraries
-        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@node-lib
         with:
           node_version: ${{ inputs.node_version }}
           workspace_path: ${{ inputs.workspace_path }}
