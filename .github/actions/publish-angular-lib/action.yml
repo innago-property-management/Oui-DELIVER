@@ -33,14 +33,16 @@ runs:
       working-directory: ${{ inputs.workspace_path }}
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
-      run: npm ci --legacy-peer-deps
+      run: npm ci
 
-    - name: Detect changed library versions
-      id: detect-changes
+    - name: Detect version bumps, build, test, and publish
       shell: bash
       env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
         WORKSPACE: ${{ inputs.workspace_path }}
       run: |
+        set -e
+
         # Match only top-level library package.json files:
         # <workspace>/projects/<lib-name>/package.json (exactly one level deep)
         CHANGED_PKGS=$(git diff HEAD~1 HEAD --name-only \
@@ -48,111 +50,63 @@ runs:
 
         if [ -z "$CHANGED_PKGS" ]; then
           echo "No library versions changed. Nothing to publish."
-          echo "has_changes=false" >> $GITHUB_OUTPUT
           exit 0
         fi
 
-        echo "has_changes=true" >> $GITHUB_OUTPUT
-        
-        # Store changed packages for next steps
-        LIBS_TO_PUBLISH=""
+        PUBLISHED=0
+        FAILED=0
+
         for PKG_PATH in $CHANGED_PKGS; do
+          # Extract lib name regardless of workspace path depth
           LIB_NAME=$(echo "$PKG_PATH" | sed "s|^${WORKSPACE}/projects/||" | cut -d'/' -f1)
+
           OLD_VERSION=$(git show HEAD~1:"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
           NEW_VERSION=$(jq -r '.version' "$PKG_PATH")
 
-          if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then
-            echo "✓ $LIB_NAME: ${OLD_VERSION:-new} → $NEW_VERSION"
-            LIBS_TO_PUBLISH="$LIBS_TO_PUBLISH $LIB_NAME"
-          else
-            echo "- $LIB_NAME: Version unchanged ($NEW_VERSION)"
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "[$LIB_NAME] Version unchanged ($NEW_VERSION) — skipping."
+            continue
           fi
-        done
 
-        # Export for subsequent steps
-        echo "libraries<<EOF" >> $GITHUB_OUTPUT
-        echo "$LIBS_TO_PUBLISH" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+          echo "[$LIB_NAME] Version bumped: ${OLD_VERSION:-new} → $NEW_VERSION"
 
-    - name: Build changed libraries
-      if: steps.detect-changes.outputs.has_changes == 'true'
-      shell: bash
-      env:
-        WORKSPACE: ${{ inputs.workspace_path }}
-        LIBRARIES: ${{ steps.detect-changes.outputs.libraries }}
-      run: |
-        set -e
-        echo "Building libraries..."
-        
-        for LIB_NAME in $LIBRARIES; do
-          echo ""
-          echo "::group::Building $LIB_NAME"
-          if (cd "${WORKSPACE}" && npx ng build "$LIB_NAME"); then
-            echo "::notice::✓ $LIB_NAME built successfully"
-          else
-            echo "::error::✗ $LIB_NAME build failed"
-            exit 1
+          # 1. Build
+          echo "[$LIB_NAME] Building..."
+          if ! (cd "${WORKSPACE}" && npx ng build "$LIB_NAME"); then
+            echo "::error::[$LIB_NAME] Build failed."
+            FAILED=$((FAILED + 1))
+            continue
           fi
-          echo "::endgroup::"
-        done
 
-    - name: Test changed libraries
-      if: steps.detect-changes.outputs.has_changes == 'true'
-      shell: bash
-      env:
-        WORKSPACE: ${{ inputs.workspace_path }}
-        LIBRARIES: ${{ steps.detect-changes.outputs.libraries }}
-      run: |
-        set -e
-        echo "Testing libraries..."
-        
-        for LIB_NAME in $LIBRARIES; do
-          echo ""
-          echo "::group::Testing $LIB_NAME"
-          
+          # 2. Test — require a test:<lib> script in workspace package.json
           SCRIPT="test:$LIB_NAME"
           if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
-            echo "::error::No test script '$SCRIPT' found in ${WORKSPACE}/package.json"
-            exit 1
+            echo "::error::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json. Aborting publish."
+            FAILED=$((FAILED + 1))
+            continue
           fi
-          
-          if (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
-            echo "::notice::✓ $LIB_NAME tests passed"
-          else
-            echo "::error::✗ $LIB_NAME tests failed"
-            exit 1
+          echo "[$LIB_NAME] Running tests..."
+          if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
+            echo "::error::[$LIB_NAME] Tests failed."
+            FAILED=$((FAILED + 1))
+            continue
           fi
-          echo "::endgroup::"
+
+          # 3. Publish from the compiled dist folder
+          echo "[$LIB_NAME] Publishing..."
+          if ! (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
+            echo "::error::[$LIB_NAME] Publish failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          echo "[$LIB_NAME] Published @innago-property-management/$LIB_NAME@$NEW_VERSION"
+          PUBLISHED=$((PUBLISHED + 1))
         done
 
-    - name: Publish libraries to GitHub Packages
-      if: steps.detect-changes.outputs.has_changes == 'true'
-      shell: bash
-      env:
-        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
-        WORKSPACE: ${{ inputs.workspace_path }}
-        LIBRARIES: ${{ steps.detect-changes.outputs.libraries }}
-      run: |
-        set -e
-        echo "Publishing libraries to GitHub Packages..."
-        
-        PUBLISHED=0
-        for LIB_NAME in $LIBRARIES; do
-          echo ""
-          echo "::group::Publishing $LIB_NAME"
-          
-          PKG_PATH="${WORKSPACE}/projects/$LIB_NAME/package.json"
-          VERSION=$(jq -r '.version' "$PKG_PATH")
-          
-          if (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
-            echo "::notice::✓ Published @innago-property-management/$LIB_NAME@$VERSION"
-            PUBLISHED=$((PUBLISHED + 1))
-          else
-            echo "::error::✗ Failed to publish $LIB_NAME@$VERSION"
-            exit 1
-          fi
-          echo "::endgroup::"
-        done
-        
-        echo ""
-        echo "::notice::Successfully published $PUBLISHED library/libraries"
+        if [ $FAILED -ne 0 ]; then
+          echo "::error::$FAILED library/libraries failed — see errors above."
+          exit 1
+        fi
+
+        echo "Published $PUBLISHED library/libraries successfully."
