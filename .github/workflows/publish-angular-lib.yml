@@ -13,6 +13,10 @@ on:
         type: string
         default: 'Innago-workspace'
         description: "Relative path to the Angular workspace directory containing the projects/ folder"
+    secrets:
+      npm_token:
+        required: true
+        description: "GitHub token with packages:write permission for publishing to GitHub Packages"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -45,7 +49,7 @@ jobs:
         with:
           node_version: ${{ inputs.node_version }}
           workspace_path: ${{ inputs.workspace_path }}
-          npm_token: ${{ secrets.GITHUB_TOKEN }}
+          npm_token: ${{ secrets.npm_token }}
           version: ${{ needs.version.outputs.version }}
 
       - name: Create Job Summary
