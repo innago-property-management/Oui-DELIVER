@@ -1,0 +1,64 @@
+name: publish-angular-lib
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        required: false
+        type: string
+        default: '18'
+        description: "Node.js version"
+      workspace_path:
+        required: false
+        type: string
+        default: 'Innago-workspace'
+        description: "Relative path to the Angular workspace directory containing the projects/ folder"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@node-lib
+    permissions:
+      contents: read
+
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [version]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+
+      - name: Publish Angular Libraries
+        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@main
+        with:
+          node_version: ${{ inputs.node_version }}
+          workspace_path: ${{ inputs.workspace_path }}
+          npm_token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ needs.version.outputs.version }}
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## Angular Library Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node Version | ${{ inputs.node_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workspace | ${{ inputs.workspace_path }} |" >> $GITHUB_STEP_SUMMARY
