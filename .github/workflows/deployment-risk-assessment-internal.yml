@@ -16,6 +16,10 @@ on:
         type: string
         default: 'main'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
 jobs:
   preflight:
     name: Preflight Checks
