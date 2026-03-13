@@ -54,6 +54,10 @@ inputs:
     required: false
     default: ''
     description: "The path to the migrations Dockerfile relative to the build context. Leave unset to skip."
+  dockerfilePath:
+    required: false
+    default: './Dockerfile'
+    description: "Path to the Dockerfile for the main image build. Relative to repository root."
   platforms:
     required: false
     default: 'linux/amd64,linux/arm64'
@@ -84,7 +88,7 @@ runs:
         push: true
         builder: ${{ steps.buildx.outputs.name }}
         context: .
-        file: ./Dockerfile
+        file: ${{ inputs.dockerfilePath }}
         platforms: ${{ inputs.platforms }}
         tags: |
           ${{ inputs.registry }}/${{ inputs.organizationName }}/${{ inputs.imageName }}:${{ inputs.version }}
