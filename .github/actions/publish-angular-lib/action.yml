@@ -1,0 +1,113 @@
+name: "Publish Angular Libraries"
+description: "Detects version-bumped Angular libraries, builds, tests, and publishes each to GitHub Packages"
+
+inputs:
+  node_version:
+    required: false
+    description: "Node.js version"
+    default: '18'
+  workspace_path:
+    required: false
+    description: "Relative path to the Angular workspace directory containing the projects/ folder"
+    default: 'Innago-workspace'
+  npm_token:
+    required: true
+    description: "GitHub token with packages:write permission for publishing to GitHub Packages"
+  version:
+    required: false
+    description: "Semver version string from the semver workflow (used for job summary)"
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: ${{ inputs.node_version }}
+        registry-url: 'https://npm.pkg.github.com/'
+        scope: '@innago-property-management'
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.workspace_path }}
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
+      run: npm ci
+
+    - name: Detect version bumps, build, test, and publish
+      shell: bash
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
+        WORKSPACE: ${{ inputs.workspace_path }}
+      run: |
+        set -e
+
+        # Match only top-level library package.json files:
+        # <workspace>/projects/<lib-name>/package.json (exactly one level deep)
+        CHANGED_PKGS=$(git diff HEAD~1 HEAD --name-only \
+          | grep -E "^${WORKSPACE}/projects/[^/]+/package\.json$" || true)
+
+        if [ -z "$CHANGED_PKGS" ]; then
+          echo "No library versions changed. Nothing to publish."
+          exit 0
+        fi
+
+        PUBLISHED=0
+        FAILED=0
+
+        for PKG_PATH in $CHANGED_PKGS; do
+          # Extract lib name regardless of workspace path depth
+          LIB_NAME=$(echo "$PKG_PATH" | sed "s|^${WORKSPACE}/projects/||" | cut -d'/' -f1)
+
+          OLD_VERSION=$(git show HEAD~1:"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
+          NEW_VERSION=$(jq -r '.version' "$PKG_PATH")
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "[$LIB_NAME] Version unchanged ($NEW_VERSION) — skipping."
+            continue
+          fi
+
+          echo "[$LIB_NAME] Version bumped: ${OLD_VERSION:-new} → $NEW_VERSION"
+
+          # 1. Build
+          echo "[$LIB_NAME] Building..."
+          if ! (cd "${WORKSPACE}" && npx ng build "$LIB_NAME"); then
+            echo "::error::[$LIB_NAME] Build failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 2. Test — require a test:<lib> script in workspace package.json
+          SCRIPT="test:$LIB_NAME"
+          if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
+            echo "::warning::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json."
+            echo "::error::[$LIB_NAME] Cannot publish without tests. Please add test script before publishing."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+          echo "[$LIB_NAME] Running tests..."
+          if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
+            echo "::error::[$LIB_NAME] Tests failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 3. Publish from the compiled dist folder
+          echo "[$LIB_NAME] Publishing..."
+          if ! (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
+            echo "::error::[$LIB_NAME] Publish failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          echo "[$LIB_NAME] Published @innago-property-management/$LIB_NAME@$NEW_VERSION"
+          PUBLISHED=$((PUBLISHED + 1))
+        done
+
+        if [ $FAILED -ne 0 ]; then
+          echo "::error::$FAILED library/libraries failed — see errors above."
+          exit 1
+        fi
+
+        echo "Published $PUBLISHED library/libraries successfully."
