@@ -78,7 +78,6 @@ runs:
         SOURCE=false
         CONFIG=false
         DOCS=false
-        OTHER=false
 
         while IFS= read -r file; do
           [[ -z "$file" ]] && continue
@@ -120,7 +119,7 @@ runs:
         done <<< "$FILES"
 
         # docs_only = only docs changed, nothing else
-        if [[ "$DOCS" == "true" && "$DEPS" == "false" && "$SOURCE" == "false" && "$CONFIG" == "false" && "$OTHER" == "false" ]]; then
+        if [[ "$DOCS" == "true" && "$DEPS" == "false" && "$SOURCE" == "false" && "$CONFIG" == "false" ]]; then
           DOCS_ONLY=true
         else
           DOCS_ONLY=false
