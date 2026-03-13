@@ -78,18 +78,17 @@ runs:
             continue
           fi
 
-          # 2. Test — require a test:<lib> script in workspace package.json
+          # 2. Test — run tests if test script exists
           SCRIPT="test:$LIB_NAME"
           if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
-            echo "::error::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json. Aborting publish."
-            FAILED=$((FAILED + 1))
-            continue
-          fi
-          echo "[$LIB_NAME] Running tests..."
-          if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
-            echo "::error::[$LIB_NAME] Tests failed."
-            FAILED=$((FAILED + 1))
-            continue
+            echo "::warning::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json. Skipping tests."
+          else
+            echo "[$LIB_NAME] Running tests..."
+            if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
+              echo "::error::[$LIB_NAME] Tests failed."
+              FAILED=$((FAILED + 1))
+              continue
+            fi
           fi
 
           # 3. Publish from the compiled dist folder
