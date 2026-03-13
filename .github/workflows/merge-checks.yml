@@ -74,7 +74,7 @@ jobs:
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   vulnerabilities:
     needs: [detect]
-    if: needs.detect.outputs.deps_changed == 'true'
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -154,7 +154,7 @@ jobs:
           fi
   outdated:
     needs: [detect]
-    if: needs.detect.outputs.deps_changed == 'true'
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -220,7 +220,7 @@ jobs:
           json_file_path: outdatedProjects.json
   licenses:
     needs: [detect]
-    if: needs.detect.outputs.deps_changed == 'true'
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:

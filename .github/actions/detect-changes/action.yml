@@ -61,9 +61,10 @@ runs:
     - name: Categorize changes
       id: categorize
       shell: bash
+      env:
+        FALLBACK: ${{ steps.changed.outputs.fallback }}
+        FILES: ${{ steps.changed.outputs.files }}
       run: |
-        FALLBACK="${{ steps.changed.outputs.fallback }}"
-
         if [[ "$FALLBACK" == "true" ]]; then
           echo "deps_changed=true" >> $GITHUB_OUTPUT
           echo "source_changed=true" >> $GITHUB_OUTPUT
@@ -73,7 +74,6 @@ runs:
           exit 0
         fi
 
-        FILES="${{ steps.changed.outputs.files }}"
         DEPS=false
         SOURCE=false
         CONFIG=false
@@ -83,24 +83,32 @@ runs:
           [[ -z "$file" ]] && continue
 
           case "$file" in
-            # Dependency manifests and lock files
-            *.csproj|*.fsproj|*.vbproj|Directory.Build.props|Directory.Packages.props)
+            # Dependency manifests and lock files (wildcards handle subdirs)
+            *.csproj|*.fsproj|*.vbproj)
               DEPS=true ;;
-            packages.lock.json|NuGet.Config|nuget.config)
+            */Directory.Build.props|Directory.Build.props|*/Directory.Packages.props|Directory.Packages.props)
               DEPS=true ;;
-            package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|bun.lockb)
+            */packages.lock.json|packages.lock.json|*/NuGet.Config|NuGet.Config|*/nuget.config|nuget.config)
               DEPS=true ;;
-            requirements*.txt|pyproject.toml|poetry.lock|Pipfile.lock|setup.py|setup.cfg)
+            */package.json|package.json|*/package-lock.json|package-lock.json)
               DEPS=true ;;
-            go.mod|go.sum)
+            */yarn.lock|yarn.lock|*/pnpm-lock.yaml|pnpm-lock.yaml|*/bun.lockb|bun.lockb)
               DEPS=true ;;
-            mix.exs|mix.lock)
+            */requirements*.txt|requirements*.txt|*/pyproject.toml|pyproject.toml)
               DEPS=true ;;
-            deno.json|deno.jsonc|deno.lock|jsr.json)
+            */poetry.lock|poetry.lock|*/Pipfile.lock|Pipfile.lock)
+              DEPS=true ;;
+            */setup.py|setup.py|*/setup.cfg|setup.cfg)
+              DEPS=true ;;
+            */go.mod|go.mod|*/go.sum|go.sum)
+              DEPS=true ;;
+            */mix.exs|mix.exs|*/mix.lock|mix.lock)
+              DEPS=true ;;
+            */deno.json|deno.json|*/deno.jsonc|deno.jsonc|*/deno.lock|deno.lock|*/jsr.json|jsr.json)
               DEPS=true ;;
 
             # CI/CD and build config
-            .github/*|Dockerfile|docker-compose*|.dockerignore)
+            .github/*|*/Dockerfile|Dockerfile|*/docker-compose*|docker-compose*|*/.dockerignore|.dockerignore)
               CONFIG=true ;;
             *.yml|*.yaml)
               # YAML outside .github — could be config (helm, k8s, etc.)
