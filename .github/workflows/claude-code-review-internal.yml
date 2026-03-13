@@ -1,0 +1,27 @@
+name: PR Code Review (Internal)
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+  id-token: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/claude-code-review.yml@main
+    with:
+      allow_approve: true
+      additional_context: |
+        This repo contains reusable GitHub Actions workflows for the Innago org.
+        Focus on:
+        - GitHub Actions YAML correctness (valid workflow_call inputs, permissions, SHA-pinned actions)
+        - Security of secret handling (no credentials in workflow files)
+        - Reusable workflow contract stability (breaking changes to inputs/secrets affect all consumers)
+        - Skill/prompt quality for Claude Code Action integrations
+    secrets:
+      anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}
