@@ -1,0 +1,134 @@
+name: Detect Changes
+description: >
+  Detect what categories of files changed in a PR to enable conditional job execution.
+  Always triggers (satisfying branch protection) but lets downstream jobs skip expensive work.
+
+outputs:
+  deps_changed:
+    description: "Dependency files changed (lock files, manifests, build props)"
+    value: ${{ steps.categorize.outputs.deps_changed }}
+  source_changed:
+    description: "Source code files changed"
+    value: ${{ steps.categorize.outputs.source_changed }}
+  config_changed:
+    description: "CI/CD or build config changed"
+    value: ${{ steps.categorize.outputs.config_changed }}
+  docs_only:
+    description: "Only documentation files changed"
+    value: ${{ steps.categorize.outputs.docs_only }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get changed files
+      id: changed
+      shell: bash
+      run: |
+        # In a PR context, compare against the merge base
+        if [[ -n "${{ github.event.pull_request.base.sha }}" ]]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          # Ensure we have both commits
+          git fetch --depth=1 origin "$BASE_SHA" 2>/dev/null || true
+          git fetch --depth=1 origin "$HEAD_SHA" 2>/dev/null || true
+
+          CHANGED=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" 2>/dev/null || echo "")
+        else
+          # Fallback: compare against parent commit (push events, workflow_dispatch)
+          CHANGED=$(git diff --name-only HEAD~1 2>/dev/null || echo "")
+        fi
+
+        if [[ -z "$CHANGED" ]]; then
+          echo "::warning::Could not determine changed files, assuming all categories changed"
+          echo "files=" >> $GITHUB_OUTPUT
+          echo "fallback=true" >> $GITHUB_OUTPUT
+        else
+          # Write to file to handle newlines safely
+          echo "$CHANGED" > /tmp/changed_files.txt
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/changed_files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "fallback=false" >> $GITHUB_OUTPUT
+
+          echo "::notice::Changed files ($(echo "$CHANGED" | wc -l | tr -d ' ')):"
+          echo "$CHANGED" | head -30
+          if [[ $(echo "$CHANGED" | wc -l) -gt 30 ]]; then
+            echo "... and $(( $(echo "$CHANGED" | wc -l) - 30 )) more"
+          fi
+        fi
+
+    - name: Categorize changes
+      id: categorize
+      shell: bash
+      run: |
+        FALLBACK="${{ steps.changed.outputs.fallback }}"
+
+        if [[ "$FALLBACK" == "true" ]]; then
+          echo "deps_changed=true" >> $GITHUB_OUTPUT
+          echo "source_changed=true" >> $GITHUB_OUTPUT
+          echo "config_changed=true" >> $GITHUB_OUTPUT
+          echo "docs_only=false" >> $GITHUB_OUTPUT
+          echo "::notice::Fallback mode — all categories marked as changed"
+          exit 0
+        fi
+
+        FILES="${{ steps.changed.outputs.files }}"
+        DEPS=false
+        SOURCE=false
+        CONFIG=false
+        DOCS=false
+        OTHER=false
+
+        while IFS= read -r file; do
+          [[ -z "$file" ]] && continue
+
+          case "$file" in
+            # Dependency manifests and lock files
+            *.csproj|*.fsproj|*.vbproj|Directory.Build.props|Directory.Packages.props)
+              DEPS=true ;;
+            packages.lock.json|NuGet.Config|nuget.config)
+              DEPS=true ;;
+            package.json|package-lock.json|yarn.lock|pnpm-lock.yaml|bun.lockb)
+              DEPS=true ;;
+            requirements*.txt|pyproject.toml|poetry.lock|Pipfile.lock|setup.py|setup.cfg)
+              DEPS=true ;;
+            go.mod|go.sum)
+              DEPS=true ;;
+            mix.exs|mix.lock)
+              DEPS=true ;;
+            deno.json|deno.jsonc|deno.lock|jsr.json)
+              DEPS=true ;;
+
+            # CI/CD and build config
+            .github/*|Dockerfile|docker-compose*|.dockerignore)
+              CONFIG=true ;;
+            *.yml|*.yaml)
+              # YAML outside .github — could be config (helm, k8s, etc.)
+              CONFIG=true ;;
+
+            # Documentation
+            *.md|*.txt|*.rst|LICENSE*|CHANGELOG*|CONTRIBUTING*)
+              DOCS=true ;;
+            docs/*|doc/*)
+              DOCS=true ;;
+
+            # Everything else is source
+            *)
+              SOURCE=true ;;
+          esac
+        done <<< "$FILES"
+
+        # docs_only = only docs changed, nothing else
+        if [[ "$DOCS" == "true" && "$DEPS" == "false" && "$SOURCE" == "false" && "$CONFIG" == "false" && "$OTHER" == "false" ]]; then
+          DOCS_ONLY=true
+        else
+          DOCS_ONLY=false
+        fi
+
+        echo "deps_changed=$DEPS" >> $GITHUB_OUTPUT
+        echo "source_changed=$SOURCE" >> $GITHUB_OUTPUT
+        echo "config_changed=$CONFIG" >> $GITHUB_OUTPUT
+        echo "docs_only=$DOCS_ONLY" >> $GITHUB_OUTPUT
+
+        echo "::notice::deps=$DEPS source=$SOURCE config=$CONFIG docs_only=$DOCS_ONLY"
