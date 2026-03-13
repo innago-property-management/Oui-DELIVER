@@ -29,6 +29,10 @@ on:
         default: false
         description: 'If true, show full Claude output (may contain sensitive info)'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}
+  cancel-in-progress: true
+
 jobs:
   kaizen-sweep:
     uses: innago-property-management/Oui-DELIVER/.github/workflows/kaizen-sweep.yml@main
