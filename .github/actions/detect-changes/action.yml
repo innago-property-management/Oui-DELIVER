@@ -54,8 +54,8 @@ runs:
           COUNT=$(echo "$CHANGED" | wc -l | tr -d ' ')
           echo "::notice::Changed files ($COUNT):"
           echo "$CHANGED" | head -30
-          if [[ $COUNT -gt 30 ]]; then
-            echo "... and $(( COUNT - 30 )) more"
+          if [[ "$COUNT" -gt 30 ]]; then
+            echo "... and $(( $COUNT - 30 )) more"
           fi
         fi
 
