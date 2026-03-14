@@ -51,10 +51,11 @@ runs:
           echo "EOF" >> $GITHUB_OUTPUT
           echo "fallback=false" >> $GITHUB_OUTPUT
 
-          echo "::notice::Changed files ($(echo "$CHANGED" | wc -l | tr -d ' ')):"
+          COUNT=$(echo "$CHANGED" | wc -l | tr -d ' ')
+          echo "::notice::Changed files ($COUNT):"
           echo "$CHANGED" | head -30
-          if [[ $(echo "$CHANGED" | wc -l) -gt 30 ]]; then
-            echo "... and $(( $(echo "$CHANGED" | wc -l) - 30 )) more"
+          if [[ "$COUNT" -gt 30 ]]; then
+            echo "... and $(( $COUNT - 30 )) more"
           fi
         fi
 

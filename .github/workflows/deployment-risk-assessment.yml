@@ -29,9 +29,9 @@ on:
         required: true
         description: 'x-api-key to allow passage through WAF'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ inputs.pr_number }}
-  cancel-in-progress: true
+# No concurrency block — this is called via workflow_call from workflows
+# that already have their own concurrency controls. github.workflow
+# resolves to the caller's name, causing group key collisions.
 
 permissions:
   contents: read
