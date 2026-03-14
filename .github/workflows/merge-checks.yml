@@ -26,14 +26,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      deps_changed: ${{ steps.changes.outputs.deps_changed }}
+      source_changed: ${{ steps.changes.outputs.source_changed }}
+      config_changed: ${{ steps.changes.outputs.config_changed }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Detect changes
+        id: changes
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
+
   sast:
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: semgrep-action
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
   secrets:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
@@ -52,6 +71,8 @@ jobs:
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   vulnerabilities:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -130,6 +151,8 @@ jobs:
             exit 0
           fi
   outdated:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -194,6 +217,8 @@ jobs:
         with:
           json_file_path: outdatedProjects.json
   licenses:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -209,5 +234,7 @@ jobs:
           path: out
           overwrite: "true"
   enforceWarningsAsErrors:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     name: Check Warnings as Errors
     uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@main
