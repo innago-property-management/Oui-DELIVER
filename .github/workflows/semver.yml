@@ -6,9 +6,10 @@ on:
         description: "Version"
         value: ${{ jobs.version.outputs.version }}
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# No concurrency block — semver is only called via workflow_call from
+# workflows that already have their own concurrency controls. Adding one
+# here collides with the caller's group (github.workflow resolves to the
+# caller's name in workflow_call context).
 
 permissions:
   contents: read
