@@ -26,12 +26,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: claude-code-review-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false
     steps:
       - name: Checkout repository
@@ -40,7 +41,7 @@ jobs:
           fetch-depth: 1
 
       - name: PR Review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
         with:
           anthropic_api_key: ${{ secrets.anthropicKey }}
           track_progress: true

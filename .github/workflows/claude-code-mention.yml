@@ -53,6 +53,7 @@ concurrency:
 jobs:
   claude-mention-response:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Only run if @claude is mentioned (for direct triggers) or always run for workflow_call
     if: |
       github.event_name == 'workflow_call' ||
@@ -92,7 +93,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Claude Code Mention Handler
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
         with:
           allowed_bots: "auto-pr-user[bot],dependabot[bot]"
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}

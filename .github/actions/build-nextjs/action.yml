@@ -24,13 +24,13 @@ runs:
   using: "composite"
   steps:
     - name: Setup Node
-      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
       with:
         node-version: ${{ inputs.node_version }}
         cache: 'npm'
 
     - name: Cache Next.js build
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # 4.2.3
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: |
           .next/cache

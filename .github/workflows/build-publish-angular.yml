@@ -65,7 +65,7 @@ on:
         description: "Github token for organization package resolve"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-publish-angular-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -103,15 +103,15 @@ jobs:
       attestations: write
       pull-requests: write
     needs: [version, detect]
-    timeout-minutes: 360
+    timeout-minutes: 30
     steps:
       - name: Checkout
         # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
         # if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/setup-node@v6.2.0
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: "${{ inputs.node_version }}"
       - name: Authenticate to GitHub Packages
@@ -133,7 +133,7 @@ jobs:
           node_version: "${{ inputs.node_version }}"
       - name: Upload dist/ folder
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: dist-artifact
           path: dist/**
@@ -147,7 +147,7 @@ jobs:
       #     npx @cyclonedx/cyclonedx-npm --output-file out/sbom.json --no-check
       # - name: Upload SBOMs
       #   if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+      #   uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       #   with:
       #     path: out
       #     overwrite: 'true'
