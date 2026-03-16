@@ -13,8 +13,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout code
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Setup .NET
       uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
       with:
@@ -56,7 +55,7 @@ runs:
          --ignored-packages "$IGNORED_PACKAGES_PATH" \
          | tee "$output_path" \
          | jq '.[] | select(.ValidationErrors != null)'
-    - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+    - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 # v1.1.0
       if: always()
       name: table
       id: table

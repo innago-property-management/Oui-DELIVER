@@ -54,6 +54,7 @@ jobs:
     steps:
       - name: Validate repository context
         run: |
+          set -euo pipefail
           if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
             echo "ERROR: Repository mismatch!"
             echo "  inputs.repository: ${{ inputs.repository }}"
@@ -64,8 +65,7 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
@@ -84,6 +84,7 @@ jobs:
       - name: Load Kaizen Sweep Skill
         id: skill
         run: |
+          set -euo pipefail
           SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-sweep/SKILL.md)
           echo "skill_content<<EOF" >> $GITHUB_OUTPUT
           echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT

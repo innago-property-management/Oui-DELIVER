@@ -66,6 +66,7 @@ runs:
         FALLBACK: ${{ steps.changed.outputs.fallback }}
         FILES: ${{ steps.changed.outputs.files }}
       run: |
+        set -euo pipefail
         if [[ "$FALLBACK" == "true" ]]; then
           echo "deps_changed=true" >> $GITHUB_OUTPUT
           echo "source_changed=true" >> $GITHUB_OUTPUT

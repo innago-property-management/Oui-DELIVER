@@ -98,8 +98,7 @@ jobs:
     needs: [version, detect]
     timeout-minutes: 30
     steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-python@main
         with:
@@ -119,10 +118,10 @@ jobs:
           imageDescription: ${{ github.event.repository.description }}
           repositoryUrl: ${{ github.event.repository.html_url }}
           sha: ${{ github.sha }}
-          cosignKey: ${{secrets.cosignKey}}
-          cosignPassword: ${{secrets.cosignPassword}}
-          migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
-          migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
+          cosignKey: ${{ secrets.cosignKey }}
+          cosignPassword: ${{ secrets.cosignPassword }}
+          migrationsDockerfileContext: ${{ inputs.migrationsDockerfileContext }}
+          migrationsDockerfilePath: ${{ inputs.migrationsDockerfilePath }}
       - name: Update ArgoCD
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main

@@ -6,6 +6,7 @@ runs:
     - name: Generate SBOM
       shell: bash
       run: |
+        set -euo pipefail
         dotnet tool install --global CycloneDX
         PATH=/root/.dotnet/tools:$PATH
         mkdir -p out
