@@ -22,7 +22,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

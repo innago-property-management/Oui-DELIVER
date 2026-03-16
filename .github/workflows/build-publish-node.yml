@@ -58,7 +58,7 @@ on:
         required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-publish-node-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
