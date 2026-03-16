@@ -60,7 +60,7 @@ jobs:
 
       - name: Run Kaizen Code Review
         id: kaizen-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
           allowed_bots: "auto-pr-user[bot],dependabot[bot]"

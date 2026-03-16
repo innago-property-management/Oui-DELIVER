@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0  # Full history for git diff analysis
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6.2.0
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '20'
 
@@ -118,7 +118,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Claude Code Risk Assessment
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1
         with:
           anthropic_api_key: ${{ secrets.anthropicKey }}
           github_token: ${{ secrets.githubToken }}
