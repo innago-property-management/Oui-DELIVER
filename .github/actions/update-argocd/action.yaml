@@ -29,7 +29,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        git config --unset-all http.https://github.com/.extraheader
+        git config --unset-all http.https://github.com/.extraheader || true
         git config user.name "${userName}"
         git config user.email "<>"
         origin="https://${userName}:${token}@github.com/${repoName}"
