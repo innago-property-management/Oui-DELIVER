@@ -115,6 +115,7 @@ jobs:
           AUDIT_CONFIG_PATH: "${{ inputs.audit_config_path }}"
           AUDIT_LEVEL: "${{ inputs.audit_level }}"
         run: |
+          set -o pipefail
           if [ "$USE_BUN" = "true" ]; then
             # Bun audit is built-in
             bun audit > audit.log
@@ -183,6 +184,7 @@ jobs:
           OUTDATED_TARGET: "${{ inputs.outdated_target }}"
           IGNORED_OUTDATED_PACKAGES: "${{ inputs.ignored_outdated_packages }}"
         run: |
+          set -o pipefail
           # Build npm-check-updates command as array (no eval)
           NCU_ARGS=(--errorLevel 1)
 
