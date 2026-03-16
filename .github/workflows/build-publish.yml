@@ -22,6 +22,16 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: ''
       dockerfilePath:
         required: false
         description: "Path to the Dockerfile for the main image build. Relative to repository root."
