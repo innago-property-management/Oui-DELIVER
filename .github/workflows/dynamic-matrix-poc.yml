@@ -14,6 +14,7 @@ permissions:
 jobs:
   create-array:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       file_list: ${{ steps.list_files.outputs.output_files }}
     steps:
@@ -46,6 +47,7 @@ jobs:
   
   use-array:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: create-array
     strategy:
       matrix:

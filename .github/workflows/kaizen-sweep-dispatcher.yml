@@ -31,6 +31,7 @@ permissions:
 jobs:
   select-and-dispatch:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       repos: ${{ steps.select.outputs.repos }}
       hour: ${{ steps.select.outputs.hour }}
@@ -132,6 +133,7 @@ jobs:
     needs: select-and-dispatch
     if: needs.select-and-dispatch.outputs.repos != '' && needs.select-and-dispatch.outputs.repos != '[]'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         repo: ${{ fromJson(needs.select-and-dispatch.outputs.repos) }}
