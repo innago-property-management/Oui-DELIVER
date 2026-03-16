@@ -121,12 +121,6 @@ jobs:
           sha: ${{ github.sha }}
           cosignKey: ${{secrets.cosignKey}}
           cosignPassword: ${{secrets.cosignPassword}}
-          buildArgs: |
-            NUGET_SOURCE_NAME=github
-            NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
-            NUGET_USERNAME=${{ github.actor }}
-          secrets: |
-            nuget_password=${{ secrets.githubToken }}
           migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
           migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
       - name: Update ArgoCD
