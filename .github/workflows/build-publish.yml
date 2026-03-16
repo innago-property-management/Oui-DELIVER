@@ -222,7 +222,7 @@ jobs:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}
           version: ${{ needs.version.outputs.version }}
-          folderName: ${{ inputs.folderName != '' && inputs.folderName || github.event.repository.name }}
+          folderName: ${{ inputs.folderName || github.event.repository.name }}
 
       - name: Create Job Summary
         if: always()
