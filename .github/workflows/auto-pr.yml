@@ -9,9 +9,8 @@ on:
         description: "App Key for using bot"
         required: false
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# No concurrency block — auto-pr is only called via workflow_call from
+# workflows that already have their own concurrency controls.
 
 jobs:
   pull_request:
