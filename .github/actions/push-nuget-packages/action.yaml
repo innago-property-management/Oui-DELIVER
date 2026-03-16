@@ -16,7 +16,8 @@ runs:
       env: 
         PUSH_TOKEN: "${{ inputs.pushToken }}"
       run: |
-        find . -path '**/bin/Release/*.nupkg' -print0 | while IFS= read -r -d $'\0' file; do 
+        set -euo pipefail
+        find . -path '**/bin/Release/*.nupkg' -print0 | while IFS= read -r -d $'\0' file; do
           dotnet nuget push "$file" \
             --source "https://nuget.pkg.github.com/${{ inputs.organization }}/index.json" \
             --api-key "${PUSH_TOKEN}" \

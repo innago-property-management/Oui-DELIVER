@@ -54,6 +54,7 @@ runs:
       id: context
       shell: bash
       run: |
+        set -euo pipefail
         if [[ "${{ github.ref }}" == "refs/heads/main" ]] || \
            [[ "${{ github.ref }}" == "refs/heads/master" ]] || \
            [[ "${{ github.ref }}" == refs/heads/${{ github.event.repository.default_branch }} ]] || \
@@ -139,6 +140,7 @@ runs:
       id: decide
       shell: bash
       run: |
+        set -euo pipefail
         # Skip tests on release if Docker-only (no packages to publish)
         if [[ "${{ steps.context.outputs.is_release }}" == "true" ]] && \
            [[ "${{ steps.detect.outputs.has_docker }}" == "true" ]] && \

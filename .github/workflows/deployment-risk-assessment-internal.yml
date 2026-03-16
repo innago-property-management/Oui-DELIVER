@@ -28,6 +28,7 @@ jobs:
     steps:
       - name: Check MCP risk assessment endpoint
         run: |
+          set -euo pipefail
           echo "Testing MCP endpoint: ${{ secrets.DEPLOYMENT_RISK_MCP_URL }}/health"
           
           HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \

@@ -55,6 +55,7 @@ runs:
         # See: https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file#packagesourcecredentials
         NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
       run: |
+        set -euo pipefail
         # Add GitHub Packages source (auth handled by NuGetPackageSourceCredentials_github env var)
         dotnet nuget add source \
           --name "github" \
@@ -74,7 +75,7 @@ runs:
           --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
           --results-directory="$REPORTS_PATH"
     - name: ReportGenerator
-      uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 #v5.0.0
+      uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 # v5.0.0
       with:
         reports: '*/**/coverage.opencover.xml'
         reporttypes: 'Html;MarkdownSummary'
