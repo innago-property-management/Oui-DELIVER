@@ -22,6 +22,26 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: ''
+      dockerfilePath:
+        required: false
+        description: "Path to the Dockerfile for the main image build. Relative to repository root."
+        type: string
+        default: './Dockerfile'
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
+        type: string
+        default: ''
       slsa:
         required: false
         default: false
@@ -58,6 +78,16 @@ on:
       migrationsDockerfilePath:
         required: false
         description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: ''
+      dockerfilePath:
+        required: false
+        description: "Path to the Dockerfile for the main image build. Relative to repository root."
+        type: string
+        default: './Dockerfile'
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
         type: string
         default: ''
       slsa:
@@ -191,6 +221,7 @@ jobs:
             NUGET_USERNAME=${{ github.actor }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
+          dockerfilePath: ${{ inputs.dockerfilePath }}
           migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
           migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
 
@@ -201,7 +232,7 @@ jobs:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}
           version: ${{ needs.version.outputs.version }}
-          folderName: ${{ github.event.repository.name }}
+          folderName: ${{ inputs.folderName || github.event.repository.name }}
 
       - name: Create Job Summary
         if: always()
