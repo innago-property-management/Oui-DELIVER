@@ -1,0 +1,57 @@
+name: cancel-stale-pr-runs
+
+on:
+  workflow_call:
+
+# No concurrency block — this is called via workflow_call from callers
+# that scope their own concurrency. github.workflow resolves to the
+# caller's name in workflow_call context.
+
+jobs:
+  cancel:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Cancel in-progress runs for merged branch
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const { owner, repo } = context.repo;
+
+            const { data: { workflow_runs: runs } } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              branch,
+              status: 'in_progress',
+              per_page: 50,
+            });
+
+            // Also grab queued runs
+            const { data: { workflow_runs: queued } } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              branch,
+              status: 'queued',
+              per_page: 50,
+            });
+
+            const stale = [...runs, ...queued];
+
+            if (stale.length === 0) {
+              core.info(`No in-progress or queued runs for branch '${branch}'`);
+              return;
+            }
+
+            core.info(`Cancelling ${stale.length} stale run(s) for merged branch '${branch}'`);
+
+            for (const run of stale) {
+              try {
+                await github.rest.actions.cancelWorkflowRun({ owner, repo, run_id: run.id });
+                core.info(`  Cancelled: ${run.name} #${run.run_number} (${run.id})`);
+              } catch (e) {
+                // Race: run may have completed between list and cancel
+                core.warning(`  Could not cancel ${run.name} #${run.run_number}: ${e.message}`);
+              }
+            }
