@@ -76,8 +76,8 @@ runs:
           echo "has_docker=false" >> $GITHUB_OUTPUT
         fi
 
-        # .NET packages (IsPackable=true in csproj)
-        if grep -rq "<IsPackable>true</IsPackable>" --include="*.csproj" . 2>/dev/null; then
+        # .NET packages (IsPackable=true or GeneratePackageOnBuild=true in csproj)
+        if grep -rqE "<IsPackable>true</IsPackable>|<GeneratePackageOnBuild>true</GeneratePackageOnBuild>" --include="*.csproj" . 2>/dev/null; then
           echo "has_nuget=true" >> $GITHUB_OUTPUT
           echo "::notice::Detected: NuGet package (.NET)"
         else
