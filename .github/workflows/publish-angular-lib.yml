@@ -13,6 +13,16 @@ on:
         type: string
         default: 'Innago-workspace'
         description: "Relative path to the Angular workspace directory containing the projects/ folder"
+      library_name:
+        required: false
+        type: string
+        default: ''
+        description: "Name of specific library to publish (optional, publishes all if empty)"
+      skip_publish:
+        required: false
+        type: boolean
+        default: false
+        description: "Skip publishing step (build and test only, for PR validation)"
     secrets:
       npm_token:
         required: true
@@ -24,6 +34,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   version:
@@ -51,18 +62,26 @@ jobs:
           workspace_path: ${{ inputs.workspace_path }}
           npm_token: ${{ secrets.npm_token }}
           version: ${{ needs.version.outputs.version }}
+          library_name: ${{ inputs.library_name }}
+          publish: ${{ inputs.skip_publish == false && 'true' || 'false' }}
 
       - name: Create Job Summary
         if: always()
         run: |
-          echo "## Angular Library Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Angular Library ${{ inputs.skip_publish && 'Build & Test' || 'Publish' }} Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | ${{ inputs.skip_publish && 'Build & Test Only' || 'Build, Test & Publish' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Version | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Node Version | ${{ inputs.node_version }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Workspace | ${{ inputs.workspace_path }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.library_name }}" ]; then
+            echo "| Library | ${{ inputs.library_name }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Library | All libraries |" >> $GITHUB_STEP_SUMMARY
+          fi

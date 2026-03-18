@@ -17,6 +17,10 @@ inputs:
     required: false
     description: "Semver version string from the semver workflow (used for job summary)"
     default: ''
+  publish:
+    required: false
+    description: "Whether to publish to NPM registry ('true' or 'false'). If 'false', only builds and tests."
+    default: 'true'
 
 runs:
   using: "composite"
@@ -40,6 +44,7 @@ runs:
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
         WORKSPACE: ${{ inputs.workspace_path }}
+        PUBLISH: ${{ inputs.publish }}
       run: |
         set -e
 
@@ -49,11 +54,12 @@ runs:
           | grep -E "^${WORKSPACE}/projects/[^/]+/package\.json$" || true)
 
         if [ -z "$CHANGED_PKGS" ]; then
-          echo "No library versions changed. Nothing to publish."
+          echo "No library versions changed. Nothing to build."
           exit 0
         fi
 
         PUBLISHED=0
+        BUILT=0
         FAILED=0
 
         for PKG_PATH in $CHANGED_PKGS; do
@@ -82,27 +88,37 @@ runs:
           SCRIPT="test:$LIB_NAME"
           if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
             echo "::warning::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json."
-            echo "::error::[$LIB_NAME] Cannot publish without tests. Please add test script before publishing."
-            FAILED=$((FAILED + 1))
-            continue
-          fi
-          echo "[$LIB_NAME] Running tests..."
-          if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
-            echo "::error::[$LIB_NAME] Tests failed."
-            FAILED=$((FAILED + 1))
-            continue
-          fi
-
-          # 3. Publish from the compiled dist folder
-          echo "[$LIB_NAME] Publishing..."
-          if ! (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
-            echo "::error::[$LIB_NAME] Publish failed."
-            FAILED=$((FAILED + 1))
-            continue
+            if [ "$PUBLISH" = "true" ]; then
+              echo "::error::[$LIB_NAME] Cannot publish without tests. Please add test script before publishing."
+              FAILED=$((FAILED + 1))
+              continue
+            else
+              echo "[$LIB_NAME] Skipping tests (not required for build-only mode)."
+            fi
+          else
+            echo "[$LIB_NAME] Running tests..."
+            if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
+              echo "::error::[$LIB_NAME] Tests failed."
+              FAILED=$((FAILED + 1))
+              continue
+            fi
           fi
 
-          echo "[$LIB_NAME] Published @innago-property-management/$LIB_NAME@$NEW_VERSION"
-          PUBLISHED=$((PUBLISHED + 1))
+          # 3. Publish from the compiled dist folder (only if PUBLISH=true)
+          if [ "$PUBLISH" = "true" ]; then
+            echo "[$LIB_NAME] Publishing..."
+            if ! (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
+              echo "::error::[$LIB_NAME] Publish failed."
+              FAILED=$((FAILED + 1))
+              continue
+            fi
+
+            echo "[$LIB_NAME] Published @innago-property-management/$LIB_NAME@$NEW_VERSION"
+            PUBLISHED=$((PUBLISHED + 1))
+          else
+            echo "[$LIB_NAME] Build and test successful (publish skipped)"
+            BUILT=$((BUILT + 1))
+          fi
         done
 
         if [ $FAILED -ne 0 ]; then
@@ -110,4 +126,8 @@ runs:
           exit 1
         fi
 
-        echo "Published $PUBLISHED library/libraries successfully."
+        if [ "$PUBLISH" = "true" ]; then
+          echo "✅ Published $PUBLISHED library/libraries successfully."
+        else
+          echo "✅ Built and tested $BUILT library/libraries successfully (publish skipped)."
+        fi
