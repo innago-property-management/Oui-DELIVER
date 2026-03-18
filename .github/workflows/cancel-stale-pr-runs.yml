@@ -11,6 +11,8 @@ jobs:
   cancel:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     timeout-minutes: 1
     steps:
       - name: Cancel in-progress runs for merged branch
@@ -25,7 +27,7 @@ jobs:
               repo,
               branch,
               status: 'in_progress',
-              per_page: 50,
+              per_page: 100,
             });
 
             // Also grab queued runs
@@ -34,7 +36,7 @@ jobs:
               repo,
               branch,
               status: 'queued',
-              per_page: 50,
+              per_page: 100,
             });
 
             const stale = [...runs, ...queued];
