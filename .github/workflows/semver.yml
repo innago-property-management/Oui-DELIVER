@@ -44,7 +44,13 @@ jobs:
             NEW_TAG="$NEXT_VERSION"
           fi
           echo "Next tag: $NEW_TAG"
-          TAG=$(git describe --exact-match --tags || echo "")
+          # Prefer the triggering ref when it's a tag push — git describe
+          # picks the oldest tag when multiple tags point to the same commit.
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=$(git describe --exact-match --tags || echo "")
+          fi
           echo "TAG=$TAG"
 
           # Validate production tag format if a tag exists
