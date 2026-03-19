@@ -65,7 +65,6 @@ jobs:
           node_version: ${{ inputs.node_version }}
           workspace_path: ${{ inputs.workspace_path }}
           npm_token: ${{ secrets.npm_token }}
-          version: ${{ needs.version.outputs.version }}
           library_name: ${{ inputs.library_name }}
           publish: ${{ inputs.skip_publish == false && 'true' || 'false' }}
 

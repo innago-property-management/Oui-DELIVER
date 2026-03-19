@@ -13,10 +13,6 @@ inputs:
   npm_token:
     required: true
     description: "GitHub token with packages:write permission for publishing to GitHub Packages"
-  version:
-    required: false
-    description: "Semver version string from the semver workflow (used for job summary)"
-    default: ''
   publish:
     required: false
     description: "Whether to publish to NPM registry ('true' or 'false'). If 'false', only builds and tests."
