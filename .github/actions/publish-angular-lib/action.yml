@@ -63,60 +63,111 @@ runs:
         FAILED=0
 
         for PKG_PATH in $CHANGED_PKGS; do
-          # Extract lib name regardless of workspace path depth
-          LIB_NAME=$(echo "$PKG_PATH" | sed "s|^${WORKSPACE}/projects/||" | cut -d'/' -f1)
+          # Extract lib name from folder path
+          FOLDER_NAME=$(echo "$PKG_PATH" | sed "s|^${WORKSPACE}/projects/||" | cut -d'/' -f1)
+          
+          # Get the package name from package.json (without scope)
+          PACKAGE_NAME=$(jq -r '.name' "$PKG_PATH" | sed 's|@innago-property-management/||')
 
           OLD_VERSION=$(git show HEAD~1:"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
           NEW_VERSION=$(jq -r '.version' "$PKG_PATH")
 
           if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
-            echo "[$LIB_NAME] Version unchanged ($NEW_VERSION) — skipping."
+            echo "[$FOLDER_NAME] Version unchanged ($NEW_VERSION) — skipping."
             continue
           fi
 
-          echo "[$LIB_NAME] Version bumped: ${OLD_VERSION:-new} → $NEW_VERSION"
+          echo "[$FOLDER_NAME] Version bumped: ${OLD_VERSION:-new} → $NEW_VERSION"
+          
+          # Try to find the correct project name from angular.json
+          PROJECT_NAME=""
+          if [ -f "${WORKSPACE}/angular.json" ]; then
+            # Check if folder name matches a project
+            if jq -e --arg name "$FOLDER_NAME" '.projects[$name]' "${WORKSPACE}/angular.json" > /dev/null 2>&1; then
+              PROJECT_NAME="$FOLDER_NAME"
+            # Check if package name matches a project
+            elif jq -e --arg name "$PACKAGE_NAME" '.projects[$name]' "${WORKSPACE}/angular.json" > /dev/null 2>&1; then
+              PROJECT_NAME="$PACKAGE_NAME"
+            else
+              echo "::warning::[$FOLDER_NAME] Project not found in angular.json. Trying folder name..."
+              PROJECT_NAME="$FOLDER_NAME"
+            fi
+          else
+            PROJECT_NAME="$FOLDER_NAME"
+          fi
 
           # 1. Build
-          echo "[$LIB_NAME] Building..."
-          if ! (cd "${WORKSPACE}" && npx ng build "$LIB_NAME"); then
-            echo "::error::[$LIB_NAME] Build failed."
+          echo "[$FOLDER_NAME] Building project '$PROJECT_NAME'..."
+          if ! (cd "${WORKSPACE}" && npx ng build "$PROJECT_NAME"); then
+            echo "::error::[$FOLDER_NAME] Build failed for project '$PROJECT_NAME'."
+            echo "::error::Possible causes:"
+            echo "::error::  - Folder name mismatch: '$FOLDER_NAME' vs angular.json project name"
+            echo "::error::  - TypeScript compilation errors"
+            echo "::error::  - Missing dependencies"
             FAILED=$((FAILED + 1))
             continue
           fi
 
           # 2. Test — require a test:<lib> script in workspace package.json
-          SCRIPT="test:$LIB_NAME"
+          SCRIPT="test:$PROJECT_NAME"
           if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
-            echo "::warning::[$LIB_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json."
-            if [ "$PUBLISH" = "true" ]; then
-              echo "::error::[$LIB_NAME] Cannot publish without tests. Please add test script before publishing."
-              FAILED=$((FAILED + 1))
-              continue
+            # Try with folder name if different
+            if [ "$PROJECT_NAME" != "$FOLDER_NAME" ]; then
+              SCRIPT="test:$FOLDER_NAME"
+              if ! jq -e --arg s "$SCRIPT" '.scripts[$s]' "${WORKSPACE}/package.json" > /dev/null 2>&1; then
+                echo "::warning::[$FOLDER_NAME] No test script found ('test:$PROJECT_NAME' or 'test:$FOLDER_NAME')."
+                if [ "$PUBLISH" = "true" ]; then
+                  echo "::error::[$FOLDER_NAME] Cannot publish without tests. Please add test script before publishing."
+                  FAILED=$((FAILED + 1))
+                  continue
+                else
+                  echo "[$FOLDER_NAME] Skipping tests (not required for build-only mode)."
+                fi
+              fi
             else
-              echo "[$LIB_NAME] Skipping tests (not required for build-only mode)."
+              echo "::warning::[$FOLDER_NAME] No test script '$SCRIPT' found in ${WORKSPACE}/package.json."
+              if [ "$PUBLISH" = "true" ]; then
+                echo "::error::[$FOLDER_NAME] Cannot publish without tests. Please add test script before publishing."
+                FAILED=$((FAILED + 1))
+                continue
+              else
+                echo "[$FOLDER_NAME] Skipping tests (not required for build-only mode)."
+              fi
             fi
           else
-            echo "[$LIB_NAME] Running tests..."
+            echo "[$FOLDER_NAME] Running tests..."
             if ! (cd "${WORKSPACE}" && npm run "$SCRIPT"); then
-              echo "::error::[$LIB_NAME] Tests failed."
+              echo "::error::[$FOLDER_NAME] Tests failed."
               FAILED=$((FAILED + 1))
               continue
             fi
           fi
 
           # 3. Publish from the compiled dist folder (only if PUBLISH=true)
+          # Use the project name for dist folder lookup
+          DIST_PATH="${WORKSPACE}/dist/$PROJECT_NAME"
+          if [ ! -d "$DIST_PATH" ]; then
+            # Try with folder name if different
+            DIST_PATH="${WORKSPACE}/dist/$FOLDER_NAME"
+            if [ ! -d "$DIST_PATH" ]; then
+              echo "::error::[$FOLDER_NAME] Build output not found in dist/$PROJECT_NAME or dist/$FOLDER_NAME"
+              FAILED=$((FAILED + 1))
+              continue
+            fi
+          fi
+          
           if [ "$PUBLISH" = "true" ]; then
-            echo "[$LIB_NAME] Publishing..."
-            if ! (cd "${WORKSPACE}/dist/$LIB_NAME" && npm publish); then
-              echo "::error::[$LIB_NAME] Publish failed."
+            echo "[$FOLDER_NAME] Publishing from $DIST_PATH..."
+            if ! (cd "$DIST_PATH" && npm publish); then
+              echo "::error::[$FOLDER_NAME] Publish failed."
               FAILED=$((FAILED + 1))
               continue
             fi
 
-            echo "[$LIB_NAME] Published @innago-property-management/$LIB_NAME@$NEW_VERSION"
+            echo "[$FOLDER_NAME] Published @innago-property-management/$PACKAGE_NAME@$NEW_VERSION"
             PUBLISHED=$((PUBLISHED + 1))
           else
-            echo "[$LIB_NAME] Build and test successful (publish skipped)"
+            echo "[$FOLDER_NAME] Build and test successful (publish skipped)"
             BUILT=$((BUILT + 1))
           fi
         done
