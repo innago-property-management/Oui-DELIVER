@@ -32,7 +32,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      deps_changed: ${{ steps.changes.outputs.deps_changed }}
+      source_changed: ${{ steps.changes.outputs.source_changed }}
+      config_changed: ${{ steps.changes.outputs.config_changed }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Detect changes
+        id: changes
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
+
   sast:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -41,6 +58,8 @@ jobs:
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
 
   secrets:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
@@ -60,6 +79,8 @@ jobs:
           gitleaks git --verbose --log-level trace --log-opts="-n 10"
 
   vulnerabilities:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -79,6 +100,8 @@ jobs:
           cat vuln.log >> $GITHUB_STEP_SUMMARY
 
   outdated:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -97,6 +120,8 @@ jobs:
           cat outdated.log >> $GITHUB_STEP_SUMMARY
 
   licenses:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
