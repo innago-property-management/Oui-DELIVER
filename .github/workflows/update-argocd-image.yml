@@ -47,6 +47,7 @@ permissions:
 jobs:
   update-argocd:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Update ArgoCD
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main

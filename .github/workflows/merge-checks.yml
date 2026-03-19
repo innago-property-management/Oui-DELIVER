@@ -22,18 +22,40 @@ permissions:
   packages: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      deps_changed: ${{ steps.changes.outputs.deps_changed }}
+      # Reserved for future ecosystem variants (node, python, go, etc.)
+      source_changed: ${{ steps.changes.outputs.source_changed }}
+      config_changed: ${{ steps.changes.outputs.config_changed }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Detect changes
+        id: changes
+        # NOTE: @main ref means changes to detect-changes won't take effect
+        # until merged — test action changes via workflow_dispatch first
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
+
   sast:
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: semgrep-action
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
   secrets:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
@@ -52,6 +74,8 @@ jobs:
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   vulnerabilities:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -65,7 +89,7 @@ jobs:
       - name: Install xq
         run: pip install yq==3.2.3
       - name: Cache NuGet packages
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # 5.0.3
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
@@ -130,23 +154,25 @@ jobs:
             exit 0
           fi
   outdated:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup .NET
-        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
           dotnet-version: "9.x"
       - name: Cache NuGet packages
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # 5.0.3
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
       - name: Install jq
-        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
       - name: Outdated Tool
         env:
           GHCR_USER: ${{ github.actor }}
@@ -154,6 +180,7 @@ jobs:
           NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
         shell: bash
         run: |
+          set -euo pipefail
           dotnet nuget add source \
             --name "github" \
             "https://nuget.pkg.github.com/innago-property-management/index.json"
@@ -187,13 +214,15 @@ jobs:
               }
             ]
           ' outdated.json > outdatedProjects.json
-      - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 #v1.1.0
+      - uses: buildingcash/json-to-markdown-table-action@b442169239ef35f1dc4e5c8c3d47686c081a7e65 # v1.1.0
         if: failure()
         name: table
         id: table
         with:
           json_file_path: outdatedProjects.json
   licenses:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -204,10 +233,12 @@ jobs:
           ignored_packages_path: "${{ inputs.ignored_packages_path }}"
           githubToken: "${{ secrets.githubToken }}"
       - name: Upload licenses
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: out
           overwrite: "true"
   enforceWarningsAsErrors:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     name: Check Warnings as Errors
     uses: innago-property-management/Oui-DELIVER/.github/workflows/enforce-treat-warnings-as-errors.yaml@main

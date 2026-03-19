@@ -53,19 +53,19 @@ concurrency:
 jobs:
   claude-mention-response:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Only run if @claude is mentioned (for direct triggers) or always run for workflow_call
     if: |
       github.event_name == 'workflow_call' ||
       contains(github.event.comment.body, '@claude') ||
       contains(github.event.issue.body, '@claude')
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1  # Shallow clone, we just need current state
 
       - name: Sparse checkout Oui-DELIVER skill
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: innago-property-management/Oui-DELIVER
           ref: main
@@ -80,6 +80,7 @@ jobs:
           # Use environment variables to safely handle content with special characters
           ADDITIONAL_CONTEXT: ${{ inputs.additional_context }}
         run: |
+          set -euo pipefail
           SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/claude-mention-responder/SKILL.md)
 
           # Append additional context if provided
@@ -92,7 +93,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Claude Code Mention Handler
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
         with:
           allowed_bots: "auto-pr-user[bot],dependabot[bot]"
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}

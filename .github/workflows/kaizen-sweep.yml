@@ -50,9 +50,11 @@ concurrency:
 jobs:
   kaizen-sweep:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Validate repository context
         run: |
+          set -euo pipefail
           if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
             echo "ERROR: Repository mismatch!"
             echo "  inputs.repository: ${{ inputs.repository }}"
@@ -63,8 +65,7 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           token: ${{ secrets.githubToken || secrets.GITHUB_TOKEN }}
@@ -83,6 +84,7 @@ jobs:
       - name: Load Kaizen Sweep Skill
         id: skill
         run: |
+          set -euo pipefail
           SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-sweep/SKILL.md)
           echo "skill_content<<EOF" >> $GITHUB_OUTPUT
           echo "$SKILL_CONTENT" >> $GITHUB_OUTPUT
@@ -94,7 +96,7 @@ jobs:
           git config --global user.email "claude[bot]@users.noreply.github.com"
 
       - name: Run Kaizen Sweep
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
           # Use PAT with workflows permission for repos that have workflow files

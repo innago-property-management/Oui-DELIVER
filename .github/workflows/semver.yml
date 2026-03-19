@@ -6,9 +6,14 @@ on:
         description: "Version"
         value: ${{ jobs.version.outputs.version }}
 
-permissions: 
+# No concurrency block — semver is only called via workflow_call from
+# workflows that already have their own concurrency controls. Adding one
+# here collides with the caller's group (github.workflow resolves to the
+# caller's name in workflow_call context).
+
+permissions:
   contents: read
-  
+
 jobs:
   version:
     runs-on: ubuntu-latest
@@ -16,7 +21,7 @@ jobs:
     outputs:
       version: ${{ steps.get_latest_tag.outputs.version }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Get Latest Tag
         id: get_latest_tag
         env:
@@ -39,7 +44,13 @@ jobs:
             NEW_TAG="$NEXT_VERSION"
           fi
           echo "Next tag: $NEW_TAG"
-          TAG=$(git describe --exact-match --tags || echo "")
+          # Prefer the triggering ref when it's a tag push — git describe
+          # picks the oldest tag when multiple tags point to the same commit.
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=$(git describe --exact-match --tags || echo "")
+          fi
           echo "TAG=$TAG"
 
           # Validate production tag format if a tag exists

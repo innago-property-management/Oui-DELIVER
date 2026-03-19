@@ -4,17 +4,21 @@ on:
 #      - main
   workflow_dispatch:
 
-permissions: 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
   contents: read
 
 jobs:
   create-array:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       file_list: ${{ steps.list_files.outputs.output_files }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: List Files and Create Array
         id: list_files
         run: |
@@ -22,7 +26,7 @@ jobs:
           echo "${FILES}"
           echo "output_files=[${FILES}]" >> "$GITHUB_OUTPUT"
       - name: Upload Array Output without matrix
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           FILES: ${{ env.FILES }}
         with:
@@ -42,6 +46,7 @@ jobs:
   
   use-array:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: create-array
     strategy:
       matrix:

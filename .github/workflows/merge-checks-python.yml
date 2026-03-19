@@ -28,7 +28,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-python-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -70,6 +70,7 @@ jobs:
           python-version: ${{ inputs.python_version }}
       - name: Install dependencies and audit
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install pip-audit
           pip install -r ${{ inputs.requirements_file }}
@@ -88,6 +89,7 @@ jobs:
           python-version: ${{ inputs.python_version }}
       - name: Check outdated packages
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r ${{ inputs.requirements_file }}
           echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
