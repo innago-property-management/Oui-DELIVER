@@ -33,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-go-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -137,6 +137,7 @@ jobs:
 
       - name: Run govulncheck
         run: |
+          set -euo pipefail
           echo "### Go Vulnerability Report" >> $GITHUB_STEP_SUMMARY
           govulncheck ./... 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY

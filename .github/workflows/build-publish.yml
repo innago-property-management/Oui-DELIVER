@@ -22,6 +22,26 @@ on:
         description: "Test project discovery is from the solution if this is not set."
         default: "."
         type: string
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image. Relative to repository root."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the Dockerfile relative to the build context."
+        type: string
+        default: ''
+      dockerfilePath:
+        required: false
+        description: "Path to the Dockerfile for the main image build. Relative to repository root."
+        type: string
+        default: './Dockerfile'
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
+        type: string
+        default: ''
       slsa:
         required: false
         default: false
@@ -60,6 +80,16 @@ on:
         description: "The path to the Dockerfile relative to the build context."
         type: string
         default: ''
+      dockerfilePath:
+        required: false
+        description: "Path to the Dockerfile for the main image build. Relative to repository root."
+        type: string
+        default: './Dockerfile'
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
+        type: string
+        default: ''
       slsa:
         required: false
         default: false
@@ -78,7 +108,7 @@ on:
         required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: build-publish-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -116,10 +146,9 @@ jobs:
       attestations: write
       pull-requests: write
     needs: [version, detect]
-    timeout-minutes: 360
+    timeout-minutes: 30
     steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Build and Test
         # Skip on release for Docker-only repos (tests already passed in PR)
@@ -163,7 +192,7 @@ jobs:
 
       - name: Upload SBOMs
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: out/
           overwrite: 'true'
@@ -183,16 +212,17 @@ jobs:
           imageDescription: ${{ github.event.repository.description }}
           repositoryUrl: ${{ github.event.repository.html_url }}
           sha: ${{ github.sha }}
-          cosignKey: ${{secrets.cosignKey}}
-          cosignPassword: ${{secrets.cosignPassword}}
+          cosignKey: ${{ secrets.cosignKey }}
+          cosignPassword: ${{ secrets.cosignPassword }}
           buildArgs: |
             NUGET_SOURCE_NAME=github
             NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
             NUGET_USERNAME=${{ github.actor }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
-          migrationsDockerfileContext: ${{inputs.migrationsDockerfileContext}}
-          migrationsDockerfilePath: ${{inputs.migrationsDockerfilePath}}
+          dockerfilePath: ${{ inputs.dockerfilePath }}
+          migrationsDockerfileContext: ${{ inputs.migrationsDockerfileContext }}
+          migrationsDockerfilePath: ${{ inputs.migrationsDockerfilePath }}
 
       - name: Update ArgoCD
         if: inputs.imageName != ''
@@ -201,7 +231,7 @@ jobs:
           githubToken: ${{ secrets.githubToken }}
           repoName: ${{ inputs.argoCdRepoName }}
           version: ${{ needs.version.outputs.version }}
-          folderName: ${{ github.event.repository.name }}
+          folderName: ${{ inputs.folderName || github.event.repository.name }}
 
       - name: Create Job Summary
         if: always()

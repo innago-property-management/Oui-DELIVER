@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-node-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: semgrep-action
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -62,6 +62,7 @@ jobs:
       - shell: bash
         name: vulnerable
         run: |
+          set -euo pipefail
           npm ci
           npm audit --audit-level=high 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
@@ -75,7 +76,7 @@ jobs:
         with:
           node-version: lts/*
       - name: Install jq
-        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 #v3.2.0
+        uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
       - name: Outdated Tool
         shell: bash
         run: |

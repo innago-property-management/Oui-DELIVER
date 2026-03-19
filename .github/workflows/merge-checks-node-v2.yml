@@ -47,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: merge-checks-node-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: semgrep-action
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d #v1
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
 
   secrets:
     runs-on: ubuntu-latest
@@ -70,9 +70,11 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: "${{ secrets.githubToken }}"
+          GH_REPOSITORY: "${{ github.repository }}"
+          GH_REPOSITORY_OWNER: "${{ github.repository_owner }}"
         run: |
-          REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
-          WORK_DIR="/__w/${{ github.repository_owner }}/${REPO_NAME}"
+          REPO_NAME="${GH_REPOSITORY##*/}"
+          WORK_DIR="/__w/${GH_REPOSITORY_OWNER}/${REPO_NAME}"
           CONTAINER_WORK_DIR="/__w/${REPO_NAME}/${REPO_NAME}"
           git config --global --add safe.directory "$WORK_DIR"
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
@@ -86,19 +88,21 @@ jobs:
 
       - name: Setup Node
         if: ${{ !inputs.use_bun }}
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v3.9.1
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: lts/*
 
       - name: Setup Bun
         if: ${{ inputs.use_bun }}
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
 
       - name: Install dependencies
+        env:
+          USE_BUN: "${{ inputs.use_bun }}"
         run: |
-          if [ "${{ inputs.use_bun }}" = "true" ]; then
+          if [ "$USE_BUN" = "true" ]; then
             bun install --frozen-lockfile
           else
             npm ci
@@ -106,32 +110,37 @@ jobs:
 
       - name: Security audit
         shell: bash
+        env:
+          USE_BUN: "${{ inputs.use_bun }}"
+          AUDIT_CONFIG_PATH: "${{ inputs.audit_config_path }}"
+          AUDIT_LEVEL: "${{ inputs.audit_level }}"
         run: |
-          if [ "${{ inputs.use_bun }}" = "true" ]; then
+          set -o pipefail
+          if [ "$USE_BUN" = "true" ]; then
             # Bun audit is built-in
             bun audit > audit.log
           else
-            # Build audit-ci command
-            AUDIT_CMD="npx --yes audit-ci"
+            # Build audit-ci command as array
+            AUDIT_ARGS=()
 
             # Use custom config if provided
-            if [ -n "${{ inputs.audit_config_path }}" ] && [ -f "${{ inputs.audit_config_path }}" ]; then
-              AUDIT_CMD="$AUDIT_CMD --config ${{ inputs.audit_config_path }}"
+            if [ -n "$AUDIT_CONFIG_PATH" ] && [ -f "$AUDIT_CONFIG_PATH" ]; then
+              AUDIT_ARGS+=(--config "$AUDIT_CONFIG_PATH")
             else
               # Use input parameters for thresholds
-              case "${{ inputs.audit_level }}" in
+              case "$AUDIT_LEVEL" in
                 moderate)
-                  AUDIT_CMD="$AUDIT_CMD --moderate"
+                  AUDIT_ARGS+=(--moderate)
                   ;;
                 high)
-                  AUDIT_CMD="$AUDIT_CMD --high"
+                  AUDIT_ARGS+=(--high)
                   ;;
                 critical)
-                  AUDIT_CMD="$AUDIT_CMD --critical"
+                  AUDIT_ARGS+=(--critical)
                   ;;
               esac
             fi
-            $AUDIT_CMD 2>&1 | tee audit.log
+            npx --yes audit-ci "${AUDIT_ARGS[@]}" 2>&1 | tee audit.log
           fi
 
           # Add to step summary
@@ -148,19 +157,21 @@ jobs:
 
       - name: Setup Node
         if: ${{ !inputs.use_bun }}
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v3.9.1
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: lts/*
 
       - name: Setup Bun
         if: ${{ inputs.use_bun }}
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
 
       - name: Install dependencies
+        env:
+          USE_BUN: "${{ inputs.use_bun }}"
         run: |
-          if [ "${{ inputs.use_bun }}" = "true" ]; then
+          if [ "$USE_BUN" = "true" ]; then
             bun install --frozen-lockfile
           else
             npm ci
@@ -168,30 +179,35 @@ jobs:
 
       - name: Check outdated dependencies with npm-check-updates
         shell: bash
+        env:
+          USE_BUN: "${{ inputs.use_bun }}"
+          OUTDATED_TARGET: "${{ inputs.outdated_target }}"
+          IGNORED_OUTDATED_PACKAGES: "${{ inputs.ignored_outdated_packages }}"
         run: |
-          # Build npm-check-updates command
-          NCU_CMD="npx --yes npm-check-updates --errorLevel 1"
+          set -o pipefail
+          # Build npm-check-updates command as array (no eval)
+          NCU_ARGS=(--errorLevel 1)
 
           # Add target filtering
-          if [ -n "${{ inputs.outdated_target }}" ]; then
-            NCU_CMD="$NCU_CMD --target ${{ inputs.outdated_target }}"
+          if [ -n "$OUTDATED_TARGET" ]; then
+            NCU_ARGS+=(--target "$OUTDATED_TARGET")
           fi
 
           # Add package rejections
-          if [ -n "${{ inputs.ignored_outdated_packages }}" ]; then
-            NCU_CMD="$NCU_CMD --reject \"${{ inputs.ignored_outdated_packages }}\""
+          if [ -n "$IGNORED_OUTDATED_PACKAGES" ]; then
+            NCU_ARGS+=(--reject "$IGNORED_OUTDATED_PACKAGES")
           fi
 
           # Run check and capture output
-          echo "Running: $NCU_CMD"
-          eval $NCU_CMD 2>&1 | tee outdated.log || {
+          echo "Running: npx npm-check-updates ${NCU_ARGS[*]}"
+          npx --yes npm-check-updates "${NCU_ARGS[@]}" 2>&1 | tee outdated.log || {
             EXIT_CODE=$?
             echo "## Outdated Dependencies Found" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             cat outdated.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            if [ "${{ inputs.use_bun }}" = "true" ]; then
+            if [ "$USE_BUN" = "true" ]; then
               echo "To update: \`bun x npm-check-updates -u\` then \`bun install\`" >> $GITHUB_STEP_SUMMARY
             else
               echo "To update: \`npx npm-check-updates -u\` then \`npm install\`" >> $GITHUB_STEP_SUMMARY

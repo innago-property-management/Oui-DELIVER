@@ -6,10 +6,11 @@ runs:
     - name: Generate SBOM
       shell: bash
       run: |
+        set -euo pipefail
         dotnet tool install --global CycloneDX
-          PATH=/root/.dotnet/tools:$PATH
-          mkdir -p out
-          find . -path '**/*.csproj' -print0 | while IFS= read -r -d $'\0' file; do 
-            name=$(basename "$file" .csproj)
-            dotnet CycloneDX "$file" --output out --filename "$name".sbom.json --json
-          done
+        PATH=/root/.dotnet/tools:$PATH
+        mkdir -p out
+        find . -path '**/*.csproj' -print0 | while IFS= read -r -d $'\0' file; do
+          name=$(basename "$file" .csproj)
+          dotnet CycloneDX "$file" --output out --filename "$name".sbom.json --json
+        done
