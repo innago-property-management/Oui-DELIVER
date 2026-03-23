@@ -6,9 +6,9 @@ on:
     inputs:
       allow_approve:
         required: false
-        description: "Allow Claude to submit APPROVE verdicts (default: false — APPROVE downgrades to COMMENT)"
+        description: "Allow Claude to submit APPROVE verdicts (default: true — APPROVE downgrades to COMMENT)"
         type: boolean
-        default: false
+        default: true
       additional_context:
         required: false
         description: "Repo-specific review guidance appended to the prompt (e.g. conventions, focus areas)"
@@ -141,4 +141,4 @@ jobs:
 
             ${{ inputs.additional_context }}
           claude_args: |
-            --allowedTools "Bash(gh api repos/*:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Bash(gh api repos/*:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*)"
