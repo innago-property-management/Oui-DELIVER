@@ -126,7 +126,7 @@ jobs:
                [TYPE] path/to/file line N — one-sentence imperative fix instruction
                ...
 
-               Run tests after all fixes. Push to the same branch.
+               Regression-prevention TDD Rule: Write a test that fails due to the issue found. Fix the code to pass the test. Refactor. Run tests after all fixes. Push to the same branch.
                ```
 
                </details>
