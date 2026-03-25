@@ -1,12 +1,12 @@
 name: Enforce TreatWarningsAsErrors
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
   workflow_call:
 
-permissions: 
+permissions:
   contents: read
-  
+
 jobs:
   check_treat_warnings_as_errors:
     runs-on: ubuntu-latest
@@ -16,17 +16,21 @@ jobs:
 
       - name: Check TreatWarningsAsErrors in Release Configuration
         run: |
+          set -euo pipefail
           violations=""
-          
-          find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | while IFS= read -r -d $'\0' project_file; do        
-            if ! grep -q "<PropertyGroup Condition=\" '\\\$\\(Configuration\\)\\' == 'Release' \">\s*<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
-              violations="$violations\n- $project_file"
+
+          # Use process substitution to avoid subshell variable loss from pipe
+          while IFS= read -r -d $'\0' project_file; do
+            # Check for TreatWarningsAsErrors anywhere in the csproj
+            # (may be in a Release-conditioned PropertyGroup or global PropertyGroup)
+            if ! grep -q "<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
+              violations="$violations"$'\n'"  - $project_file"
             fi
-          done
-          
+          done < <(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0)
+
           if [ -n "$violations" ]; then
-            echo "::error::The following non-test/example C# projects do not enforce TreatWarningsAsErrors in the Release configuration:${violations}"
+            echo "::error::The following non-test/example C# projects do not set TreatWarningsAsErrors:${violations}"
             exit 1
           else
-            echo "All relevant C# projects enforce TreatWarningsAsErrors in the Release configuration."
+            echo "All relevant C# projects enforce TreatWarningsAsErrors."
           fi
