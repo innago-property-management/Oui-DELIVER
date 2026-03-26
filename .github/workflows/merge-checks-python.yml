@@ -96,7 +96,7 @@ jobs:
           pip install pip-audit
           pip install -r ${{ inputs.requirements_file }}
           echo "### Vulnerability Report" >> $GITHUB_STEP_SUMMARY
-          pip-audit --desc on 2>&1 | tee vuln.log
+          pip-audit -r ${{ inputs.requirements_file }} --desc on 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
 
   outdated:
