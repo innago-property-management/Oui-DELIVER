@@ -7,14 +7,14 @@ on:
         required: false
         type: string
         default: ''
-        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Set via repo variable ENFORCE_WARNINGS_BYPASS_UNTIL.'
+        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors.'
   workflow_call:
     inputs:
       bypass_until:
         required: false
         type: string
         default: ''
-        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Set via repo variable ENFORCE_WARNINGS_BYPASS_UNTIL.'
+        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Callers should pass vars.ENFORCE_WARNINGS_BYPASS_UNTIL.'
 
 permissions:
   contents: read
@@ -45,6 +45,10 @@ jobs:
           if [ -n "$violations" ]; then
             # Check for active bypass
             if [ -n "$BYPASS_UNTIL" ]; then
+              if ! [[ "$BYPASS_UNTIL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+                echo "::error::ENFORCE_WARNINGS_BYPASS_UNTIL value '${BYPASS_UNTIL}' is not a valid YYYY-MM-DD date."
+                exit 1
+              fi
               today=$(date -u +%Y-%m-%d)
               if [[ "$today" < "$BYPASS_UNTIL" || "$today" == "$BYPASS_UNTIL" ]]; then
                 echo "::warning::TreatWarningsAsErrors bypass active until ${BYPASS_UNTIL}. The following projects need fixing:${violations}"
