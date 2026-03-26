@@ -50,7 +50,7 @@ jobs:
                 exit 1
               fi
               today=$(date -u +%Y-%m-%d)
-              if [[ "$today" < "$BYPASS_UNTIL" || "$today" == "$BYPASS_UNTIL" ]]; then
+              if [[ "$today" <= "$BYPASS_UNTIL" ]]; then
                 echo "::warning::TreatWarningsAsErrors bypass active until ${BYPASS_UNTIL}. The following projects need fixing:${violations}"
                 echo "### ⚠️ TreatWarningsAsErrors Bypass Active" >> "$GITHUB_STEP_SUMMARY"
                 echo "Bypass expires: **${BYPASS_UNTIL}**" >> "$GITHUB_STEP_SUMMARY"
