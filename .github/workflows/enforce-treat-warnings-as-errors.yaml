@@ -2,7 +2,19 @@ name: Enforce TreatWarningsAsErrors
 
 on:
   workflow_dispatch:
+    inputs:
+      bypass_until:
+        required: false
+        type: string
+        default: ''
+        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Set via repo variable ENFORCE_WARNINGS_BYPASS_UNTIL.'
   workflow_call:
+    inputs:
+      bypass_until:
+        required: false
+        type: string
+        default: ''
+        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Set via repo variable ENFORCE_WARNINGS_BYPASS_UNTIL.'
 
 permissions:
   contents: read
@@ -15,6 +27,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check TreatWarningsAsErrors in Release Configuration
+        env:
+          BYPASS_UNTIL: ${{ inputs.bypass_until }}
         run: |
           set -euo pipefail
           violations=""
@@ -29,6 +43,24 @@ jobs:
           done < <(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0)
 
           if [ -n "$violations" ]; then
+            # Check for active bypass
+            if [ -n "$BYPASS_UNTIL" ]; then
+              today=$(date -u +%Y-%m-%d)
+              if [[ "$today" < "$BYPASS_UNTIL" || "$today" == "$BYPASS_UNTIL" ]]; then
+                echo "::warning::TreatWarningsAsErrors bypass active until ${BYPASS_UNTIL}. The following projects need fixing:${violations}"
+                echo "### ⚠️ TreatWarningsAsErrors Bypass Active" >> "$GITHUB_STEP_SUMMARY"
+                echo "Bypass expires: **${BYPASS_UNTIL}**" >> "$GITHUB_STEP_SUMMARY"
+                echo "" >> "$GITHUB_STEP_SUMMARY"
+                echo "Projects missing TreatWarningsAsErrors:" >> "$GITHUB_STEP_SUMMARY"
+                echo '```' >> "$GITHUB_STEP_SUMMARY"
+                echo "$violations" >> "$GITHUB_STEP_SUMMARY"
+                echo '```' >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              else
+                echo "::notice::TreatWarningsAsErrors bypass expired on ${BYPASS_UNTIL} — enforcing."
+              fi
+            fi
+
             echo "::error::The following non-test/example C# projects do not set TreatWarningsAsErrors:${violations}"
             exit 1
           else
