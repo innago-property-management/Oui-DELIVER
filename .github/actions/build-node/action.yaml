@@ -34,3 +34,9 @@ runs:
       run: |
         npm ci
         npm run build
+    - name: Test
+      shell: bash
+      env:
+        TEST_PROJECT_PATH: ${{ inputs.testProjectPath }}
+      run: |
+        npm test --prefix "$TEST_PROJECT_PATH"

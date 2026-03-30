@@ -59,3 +59,10 @@ runs:
         VERSION: ${{ inputs.version }}
         NODE_OPTIONS: --max-old-space-size=8192
       run: npm run build
+
+    - name: Test
+      shell: bash
+      env:
+        TEST_PROJECT_PATH: ${{ inputs.testProjectPath }}
+      run: |
+        npm test --prefix "$TEST_PROJECT_PATH"
