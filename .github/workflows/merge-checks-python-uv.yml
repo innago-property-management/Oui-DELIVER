@@ -2,6 +2,17 @@ name: merge-checks-python-uv
 
 on:
   workflow_dispatch:
+    inputs:
+      python_version:
+        required: false
+        description: "Python version to use (default: 3.12)"
+        type: string
+        default: "3.12"
+      allowed_licenses:
+        required: false
+        description: "Regex pattern of allowed licenses"
+        type: string
+        default: "MIT|Apache|BSD|ISC|PSF|Python|Unlicense|CC0|0BSD|WTFPL"
   workflow_call:
     inputs:
       python_version:
