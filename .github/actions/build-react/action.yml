@@ -1,0 +1,54 @@
+name: "Build React"
+description: "Builds a React app"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  node_version:
+    required: false
+    description: "Node version to use for build"
+    default: '20'
+  githubToken:
+    required: true
+    description: "Github Token for authentication"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  testProjectPath:
+    required: false
+    description: "Test project path"
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+      run: npm ci
+
+    - name: Run linting
+      shell: bash
+      run: npm run lint
+
+    - name: Run tests
+      shell: bash
+      working-directory: ${{ inputs.testProjectPath }}
+      env:
+        CI: true
+      run: npm test -- --coverage --watchAll=false --coverageThreshold='{"global":{"lines":${{ inputs.minimumCoverage }},"branches":${{ inputs.minimumCoverage }},"functions":${{ inputs.minimumCoverage }},"statements":${{ inputs.minimumCoverage }}}}'
+
+    - name: Build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        NODE_OPTIONS: --max-old-space-size=8192
+      run: npm run build
