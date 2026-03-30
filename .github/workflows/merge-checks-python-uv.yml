@@ -117,7 +117,7 @@ jobs:
           echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
           uv lock --check 2>&1 | tee lock-check.log || true
           cat lock-check.log >> $GITHUB_STEP_SUMMARY
-          uv sync
+          uv sync --group dev
           uv run pip list --outdated --format=columns | tee outdated.log
           cat outdated.log >> $GITHUB_STEP_SUMMARY
 
@@ -143,16 +143,11 @@ jobs:
           set -euo pipefail
           uv sync
 
-          # Export installed packages to requirements format for pip-licenses
-          # pip-licenses must see the installed packages, so we install it into the venv
-          # via uv add --dev (ephemeral — not committed to caller's pyproject.toml)
-          uv add --dev pip-licenses --quiet
-
           echo "### License Report" >> $GITHUB_STEP_SUMMARY
-          uv run pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY
+          uv run --with pip-licenses pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY
 
-          # Check for disallowed licenses (exclude pip-licenses itself)
-          DISALLOWED=$(uv run pip-licenses --format=csv | tail -n +2 | grep -v "pip-licenses" | grep -ivE "$ALLOWED_LICENSES" || true)
+          # Check for disallowed licenses
+          DISALLOWED=$(uv run --with pip-licenses pip-licenses --format=csv | tail -n +2 | grep -ivE "$ALLOWED_LICENSES" || true)
 
           if [ -n "$DISALLOWED" ]; then
             echo "### Disallowed Licenses Found" >> $GITHUB_STEP_SUMMARY
