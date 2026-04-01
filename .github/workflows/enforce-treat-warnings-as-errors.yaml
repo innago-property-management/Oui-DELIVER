@@ -7,7 +7,7 @@ on:
         required: false
         type: string
         default: ''
-        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors.'
+        description: 'ISO date (YYYY-MM-DD) until which violations warn instead of failing. For automated callers, set repo variable ENFORCE_WARNINGS_BYPASS_UNTIL instead.'
   workflow_call:
     inputs:
       bypass_until:
