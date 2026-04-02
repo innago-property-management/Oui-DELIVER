@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'ci:run')
     uses: innago-property-management/Oui-DELIVER/.github/workflows/claude-code-review.yml@main
     with:
       allow_approve: true
