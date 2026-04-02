@@ -17,11 +17,6 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: '0'
-      testProjectPath:
-        required: false
-        description: "Test project discovery is from the solution if this is not set."
-        default: "."
-        type: string
 
   workflow_call:
     inputs:
@@ -40,11 +35,6 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0      
-      testProjectPath:
-        required: false
-        description: "Test project discovery is from the solution if this is not set."
-        default: "."
-        type: string
       node_version:
         required: true
         description: "Node version to resolve node/npm dependency"
