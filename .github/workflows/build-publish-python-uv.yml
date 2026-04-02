@@ -1,0 +1,244 @@
+name: build-publish-python-uv
+
+on:
+  workflow_dispatch:
+    inputs:
+      imageName:
+        required: false
+        description: "Docker image name. Omit if no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      slsa:
+        required: false
+        default: false
+        description: "Enable SLSA provenance generation"
+        type: boolean
+      package_name:
+        required: true
+        description: "Python package name for ruff/ty targets (e.g. 'seshat')"
+        type: string
+      python_version:
+        required: false
+        description: "Python version (default: 3.12)"
+        type: string
+        default: "3.12"
+      run_tests:
+        required: false
+        description: "Run pytest (default: true)"
+        type: boolean
+        default: true
+      trivy_severity:
+        required: false
+        description: "Trivy scan severity threshold"
+        type: string
+        default: "CRITICAL,HIGH"
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the migrations Dockerfile."
+        type: string
+        default: ''
+
+  workflow_call:
+    inputs:
+      imageName:
+        required: false
+        description: "Docker image name. Omit if no Docker image to build."
+        type: string
+        default: ''
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Omit if no image."
+        type: string
+        default: ''
+      migrationsDockerfileContext:
+        required: false
+        description: "The build context for the migrations Docker image."
+        type: string
+        default: '.'
+      migrationsDockerfilePath:
+        required: false
+        description: "The path to the migrations Dockerfile."
+        type: string
+        default: ''
+      slsa:
+        required: false
+        default: false
+        description: "Enable SLSA provenance generation"
+        type: boolean
+      package_name:
+        required: true
+        description: "Python package name for ruff/ty targets (e.g. 'seshat')"
+        type: string
+      python_version:
+        required: false
+        description: "Python version (default: 3.12)"
+        type: string
+        default: "3.12"
+      run_tests:
+        required: false
+        description: "Run pytest (default: true)"
+        type: boolean
+        default: true
+      trivy_severity:
+        required: false
+        description: "Trivy scan severity threshold"
+        type: string
+        default: "CRITICAL,HIGH"
+
+    secrets:
+      githubToken:
+        description: "GitHub token"
+        required: true
+      cosignKey:
+        description: "Cosign key"
+        required: true
+      cosignPassword:
+        description: "Cosign password"
+        required: true
+
+concurrency:
+  group: build-publish-python-uv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions:
+      contents: read
+
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      skip_tests: ${{ steps.detect.outputs.skip_tests }}
+    steps:
+      - name: Detect build type
+        id: detect
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@main
+
+  quality:
+    needs: [version, detect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint
+        run: uv run ruff check ${{ inputs.package_name }}/
+
+      - name: Type check
+        run: uv run ty check
+
+      - name: Run tests
+        if: inputs.run_tests && needs.detect.outputs.skip_tests != 'true'
+        run: uv run pytest tests/ -v
+
+      - name: Audit dependencies
+        run: uv run pip-audit
+
+      - name: Build package
+        run: uv build
+
+  docker-publish:
+    needs: [version, quality]
+    if: inputs.imageName != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Publish Container Image
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.githubToken }}
+          version: ${{ needs.version.outputs.version }}
+          imageName: ${{ inputs.imageName }}
+          organizationName: ${{ github.repository_owner }}
+          imageTitle: ${{ github.event.repository.name }}
+          imageDescription: ${{ github.event.repository.description }}
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
+          cosignKey: ${{ secrets.cosignKey }}
+          cosignPassword: ${{ secrets.cosignPassword }}
+          migrationsDockerfileContext: ${{ inputs.migrationsDockerfileContext }}
+          migrationsDockerfilePath: ${{ inputs.migrationsDockerfilePath }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
+        with:
+          image-ref: "ghcr.io/${{ github.repository_owner }}/${{ inputs.imageName }}:${{ needs.version.outputs.version }}"
+          format: 'table'
+          exit-code: '1'
+          severity: ${{ inputs.trivy_severity }}
+          ignore-unfixed: true
+
+      - name: Update ArgoCD
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ github.event.repository.name }}
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ghcr.io/${{ github.repository_owner }}/${{ inputs.imageName }}:${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+
+  generate_provenance:
+    needs: docker-publish
+    if: inputs.slsa && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yaml@main
+    permissions:
+      attestations: write
+      id-token: write
+      actions: read
+      contents: write
