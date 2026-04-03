@@ -6,9 +6,9 @@ on:
     inputs:
       allow_approve:
         required: false
-        description: "Allow Claude to submit APPROVE verdicts (default: false — APPROVE downgrades to COMMENT)"
+        description: "Allow Claude to submit APPROVE verdicts (default: true — APPROVE downgrades to COMMENT)"
         type: boolean
-        default: false
+        default: true
       additional_context:
         required: false
         description: "Repo-specific review guidance appended to the prompt (e.g. conventions, focus areas)"
@@ -33,18 +33,21 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false
+    if: >-
+      github.event_name == 'workflow_call' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci:run')
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
 
       - name: PR Review
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
+        uses: anthropics/claude-code-action@ff9acae5886d41a99ed4ec14b7dc147d55834722 # v1.0.77
         with:
           anthropic_api_key: ${{ secrets.anthropicKey }}
           track_progress: true
-          allowed_bots: 'auto-pr-user[bot],dependabot[bot]'
+          allowed_bots: '*'
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -97,11 +100,12 @@ jobs:
                - Use COMMENT for purely advisory observations with no blocking issues.
 
             6. Submit ONE batched review using the GitHub API. Do NOT post individual
-               gh pr comment calls — all feedback must go through this single call:
+               gh pr comment calls for review feedback — all review feedback must go
+               through this single review call:
 
                gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
                  --method POST \
-                 -f body="<overall summary + agent fix prompt if REQUEST_CHANGES — see step 7>" \
+                 -f body="<overall summary for humans>" \
                  -f event="<APPROVE|REQUEST_CHANGES|COMMENT>" \
                  -f "comments[][path]=<file path>" \
                  -f "comments[][position]=<diff position>" \
@@ -111,25 +115,26 @@ jobs:
                the first @@ hunk header of each file), not the source file line number.
                Omit the comments[] fields entirely if there are no inline issues.
 
-            7. If and only if the verdict is REQUEST_CHANGES, append the following block
-               at the end of the review body (the -f body= value in step 6):
+            7. If and only if the verdict is REQUEST_CHANGES, post a SEPARATE comment
+               (not part of the review) with machine-readable fix instructions for an
+               automated agent. This comment MUST start with the exact HTML marker on
+               line 1 so agents can find it without reading other comments:
 
-               ---
+               gh pr comment ${{ github.event.pull_request.number }} --body '<!-- agent-fix-prompt -->
+               ## 🤖 Agent Fix Prompt
 
-               <details>
-               <summary>🤖 Agent fix prompt</summary>
-
-               ```
                Address the following review findings on PR #${{ github.event.pull_request.number }}
                in repo ${{ github.repository }}, branch <head branch from gh pr view>:
 
+               ```
                [TYPE] path/to/file line N — one-sentence imperative fix instruction
                ...
-
-               Run tests after all fixes. Push to the same branch.
                ```
 
-               </details>
+               Regression-prevention TDD Rule: Write a test that fails due to the issue
+               found. Fix the code to pass the test. Refactor. Run tests after all fixes.
+               Push to the same branch.
+               '
 
                Rules for the agent fix prompt:
                - [TYPE] is one of: SECURITY, BUG, MISSING-TEST, PERF, DOCS, STYLE
@@ -139,6 +144,9 @@ jobs:
                - Do not repeat the inline comment text verbatim — distil to the minimum
                  actionable instruction
 
+               A local agent retrieves its instructions with:
+               gh pr view NUMBER --comments --json comments --jq '.comments[] | select(.body | startswith("<!-- agent-fix-prompt -->")) | .body'
+
             ${{ inputs.additional_context }}
           claude_args: |
-            --allowedTools "Bash(gh api repos/*:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Bash(gh:*)"

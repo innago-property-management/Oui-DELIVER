@@ -27,7 +27,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      deps_changed: ${{ steps.changes.outputs.deps_changed }}
+      source_changed: ${{ steps.changes.outputs.source_changed }}
+      config_changed: ${{ steps.changes.outputs.config_changed }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Detect changes
+        id: changes
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
+
   sast:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -35,6 +52,8 @@ jobs:
       - name: semgrep-action
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
   secrets:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
@@ -53,6 +72,8 @@ jobs:
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
   format-check:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -66,6 +87,8 @@ jobs:
       - run: npm run format:check
 
   lint-check:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -79,6 +102,8 @@ jobs:
       - run: npm run lint
 
   chromatic:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -97,6 +122,8 @@ jobs:
       - run: NODE_OPTIONS=--max-old-space-size=8192 npm run chromatic -- --project-token=${{ secrets.chromatic_token }} --only-changed
 
   vulnerability-check:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -112,6 +139,8 @@ jobs:
           node .github/scripts/check-audits.js
 
   outdated:
+    needs: [detect]
+    if: needs.detect.outputs.deps_changed == 'true' || needs.detect.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -133,7 +162,8 @@ jobs:
           npm run outdated:check
 
   run-tests:
-    needs: [format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    needs: [detect, format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -148,8 +178,8 @@ jobs:
       - run: NODE_OPTIONS=--max-old-space-size=8192 npm run test:ci
 
   run-build:
-    if: github.event_name == 'pull_request'
-    needs: [format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    needs: [detect, format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
+    if: github.event_name == 'pull_request' && needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

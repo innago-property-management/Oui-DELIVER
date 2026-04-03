@@ -32,7 +32,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      deps_changed: ${{ steps.changes.outputs.deps_changed }}
+      source_changed: ${{ steps.changes.outputs.source_changed }}
+      config_changed: ${{ steps.changes.outputs.config_changed }}
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Detect changes
+        id: changes
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
+
   sast:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -41,6 +58,8 @@ jobs:
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
 
   secrets:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
@@ -60,6 +79,8 @@ jobs:
           gitleaks git --verbose --log-level trace --log-opts="-n 10"
 
   build-and-test:
+    needs: [detect]
+    if: needs.detect.outputs.docs_only != 'true'
     name: Build and Test (Elixir ${{ inputs.elixir_version }} / OTP ${{ inputs.otp_version }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -67,13 +88,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Elixir
-        uses: erlef/setup-beam@3580539ceec3dc05b0ed51e9e10b08eb7a7c2bb4 # v1.21.0
+        uses: erlef/setup-beam@ee09b1e59bb240681c382eb1f0abc6a04af72764 # v1.23.0
         with:
           elixir-version: ${{ inputs.elixir_version }}
           otp-version: ${{ inputs.otp_version }}
 
       - name: Restore dependencies cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             deps

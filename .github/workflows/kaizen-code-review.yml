@@ -2,7 +2,7 @@ name: Kaizen Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review]
   workflow_call:
     inputs:
       pr_number:
@@ -31,6 +31,10 @@ concurrency:
 
 jobs:
   kaizen-review:
+    if: >-
+      github.event_name == 'workflow_call' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci:run')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -60,7 +64,7 @@ jobs:
 
       - name: Run Kaizen Code Review
         id: kaizen-review
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
+        uses: anthropics/claude-code-action@ff9acae5886d41a99ed4ec14b7dc147d55834722 # v1.0.77
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
           allowed_bots: "auto-pr-user[bot],dependabot[bot]"

@@ -1,12 +1,24 @@
 name: Enforce TreatWarningsAsErrors
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
+    inputs:
+      bypass_until:
+        required: false
+        type: string
+        default: ''
+        description: 'ISO date (YYYY-MM-DD) until which violations warn instead of failing. For automated callers, set repo variable ENFORCE_WARNINGS_BYPASS_UNTIL instead.'
   workflow_call:
+    inputs:
+      bypass_until:
+        required: false
+        type: string
+        default: ''
+        description: 'ISO date (YYYY-MM-DD) until which violations are warnings instead of errors. Callers should pass vars.ENFORCE_WARNINGS_BYPASS_UNTIL.'
 
-permissions: 
+permissions:
   contents: read
-  
+
 jobs:
   check_treat_warnings_as_errors:
     runs-on: ubuntu-latest
@@ -15,18 +27,46 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Check TreatWarningsAsErrors in Release Configuration
+        env:
+          BYPASS_UNTIL: ${{ inputs.bypass_until }}
         run: |
+          set -euo pipefail
           violations=""
-          
-          find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0 | while IFS= read -r -d $'\0' project_file; do        
-            if ! grep -q "<PropertyGroup Condition=\" '\\\$\\(Configuration\\)\\' == 'Release' \">\s*<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
-              violations="$violations\n- $project_file"
+
+          # Use process substitution to avoid subshell variable loss from pipe
+          while IFS= read -r -d $'\0' project_file; do
+            # Check for TreatWarningsAsErrors anywhere in the csproj
+            # (may be in a Release-conditioned PropertyGroup or global PropertyGroup)
+            if ! grep -q "<TreatWarningsAsErrors>true</TreatWarningsAsErrors>" "$project_file"; then
+              violations="$violations"$'\n'"  - $project_file"
             fi
-          done
-          
+          done < <(find . -name "*.csproj" -not -path "*[Tt]est*" -not -path "*[Ee]xample*" -print0)
+
           if [ -n "$violations" ]; then
-            echo "::error::The following non-test/example C# projects do not enforce TreatWarningsAsErrors in the Release configuration:${violations}"
+            # Check for active bypass
+            if [ -n "$BYPASS_UNTIL" ]; then
+              if ! [[ "$BYPASS_UNTIL" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+                echo "::error::ENFORCE_WARNINGS_BYPASS_UNTIL value '${BYPASS_UNTIL}' is not a valid YYYY-MM-DD date."
+                exit 1
+              fi
+              today=$(date -u +%Y-%m-%d)
+              if ! [[ "$today" > "$BYPASS_UNTIL" ]]; then
+                echo "::warning::TreatWarningsAsErrors bypass active until ${BYPASS_UNTIL}. The following projects need fixing:${violations}"
+                echo "### ⚠️ TreatWarningsAsErrors Bypass Active" >> "$GITHUB_STEP_SUMMARY"
+                echo "Bypass expires: **${BYPASS_UNTIL}**" >> "$GITHUB_STEP_SUMMARY"
+                echo "" >> "$GITHUB_STEP_SUMMARY"
+                echo "Projects missing TreatWarningsAsErrors:" >> "$GITHUB_STEP_SUMMARY"
+                echo '```' >> "$GITHUB_STEP_SUMMARY"
+                echo "$violations" >> "$GITHUB_STEP_SUMMARY"
+                echo '```' >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              else
+                echo "::notice::TreatWarningsAsErrors bypass expired on ${BYPASS_UNTIL} — enforcing."
+              fi
+            fi
+
+            echo "::error::The following non-test/example C# projects do not set TreatWarningsAsErrors:${violations}"
             exit 1
           else
-            echo "All relevant C# projects enforce TreatWarningsAsErrors in the Release configuration."
+            echo "All relevant C# projects enforce TreatWarningsAsErrors."
           fi

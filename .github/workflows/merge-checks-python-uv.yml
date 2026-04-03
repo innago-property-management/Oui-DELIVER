@@ -1,7 +1,18 @@
-name: merge-checks-python
+name: merge-checks-python-uv
 
 on:
   workflow_dispatch:
+    inputs:
+      python_version:
+        required: false
+        description: "Python version to use (default: 3.12)"
+        type: string
+        default: "3.12"
+      allowed_licenses:
+        required: false
+        description: "Regex pattern of allowed licenses"
+        type: string
+        default: "MIT|Apache|BSD|ISC|PSF|Python|Unlicense|CC0|0BSD|WTFPL"
   workflow_call:
     inputs:
       python_version:
@@ -9,11 +20,6 @@ on:
         description: "Python version to use (default: 3.12)"
         type: string
         default: "3.12"
-      requirements_file:
-        required: false
-        description: "Path to requirements file (default: requirements.txt)"
-        type: string
-        default: "requirements.txt"
       allowed_licenses:
         required: false
         description: "Regex pattern of allowed licenses"
@@ -28,7 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: merge-checks-python-${{ github.ref }}
+  group: merge-checks-python-uv-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +48,7 @@ jobs:
       config_changed: ${{ steps.changes.outputs.config_changed }}
       docs_only: ${{ steps.changes.outputs.docs_only }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Detect changes
         id: changes
         uses: innago-property-management/Oui-DELIVER/.github/actions/detect-changes@main
@@ -52,10 +58,13 @@ jobs:
     if: needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: semgrep-action
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d  # v1
 
   secrets:
     needs: [detect]
@@ -63,9 +72,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     container:
-      image: ghcr.io/gitleaks/gitleaks:latest
+      image: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f  # v8.30.1
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: GitLeaks
         shell: bash
         env:
@@ -84,19 +93,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ inputs.python_version }}
-      - name: Install dependencies and audit
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          enable-cache: true
+      - name: Audit dependencies
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          pip install pip-audit
-          pip install -r ${{ inputs.requirements_file }}
+          uv sync --group dev
           echo "### Vulnerability Report" >> $GITHUB_STEP_SUMMARY
-          pip-audit -r ${{ inputs.requirements_file }} --desc on 2>&1 | tee vuln.log
+          uv run pip-audit --desc on 2>&1 | tee vuln.log
           cat vuln.log >> $GITHUB_STEP_SUMMARY
 
   outdated:
@@ -105,18 +116,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ inputs.python_version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          enable-cache: true
       - name: Check outdated packages
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          pip install -r ${{ inputs.requirements_file }}
           echo "### Outdated Packages" >> $GITHUB_STEP_SUMMARY
-          pip list --outdated --format=columns | tee outdated.log
+          uv lock --check 2>&1 | tee lock-check.log || true
+          cat lock-check.log >> $GITHUB_STEP_SUMMARY
+          uv sync --group dev
+          uv run pip list --outdated --format=columns | tee outdated.log
           cat outdated.log >> $GITHUB_STEP_SUMMARY
 
   licenses:
@@ -125,26 +141,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ inputs.python_version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+        with:
+          enable-cache: true
       - name: Check licenses
         env:
           ALLOWED_LICENSES: ${{ inputs.allowed_licenses }}
         run: |
-          python -m pip install --upgrade pip
-          pip install pip-licenses
-          pip install -r ${{ inputs.requirements_file }}
+          set -euo pipefail
+          uv sync
 
           echo "### License Report" >> $GITHUB_STEP_SUMMARY
-
-          # Get licenses in markdown table format
-          pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY
+          uv run --with pip-licenses pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY
 
           # Check for disallowed licenses
-          DISALLOWED=$(pip-licenses --format=csv | tail -n +2 | grep -ivE "$ALLOWED_LICENSES" || true)
+          DISALLOWED=$(uv run --with pip-licenses pip-licenses --format=csv | tail -n +2 | grep -ivE "$ALLOWED_LICENSES" || true)
 
           if [ -n "$DISALLOWED" ]; then
             echo "### Disallowed Licenses Found" >> $GITHUB_STEP_SUMMARY
