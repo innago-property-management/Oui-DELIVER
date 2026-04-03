@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Create GitHub App Token
         env:
           auto_pr_private_key: ${{ secrets.auto_pr_private_key }}
@@ -27,6 +26,9 @@ jobs:
         with:
           app-id: ${{ vars.AUTO_PR_APP_ID }}
           private-key: ${{ secrets.auto_pr_private_key }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app_token.outputs.token || secrets.token }}
       - name: Create PR if none exists
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
