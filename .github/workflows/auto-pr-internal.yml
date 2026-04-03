@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app_token.outputs.token }}
+      - name: Fetch base branch for PR diff
+        run: git fetch origin main --depth=1
       - name: Create PR if none exists
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token }}
