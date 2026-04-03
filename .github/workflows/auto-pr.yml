@@ -1,7 +1,7 @@
 name: auto-pr
 on:
   workflow_call:
-    secrets: 
+    secrets:
       token:
         description: "Github token"
         required: true
@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Create GitHub App Token
         env:
           auto_pr_private_key: ${{ secrets.auto_pr_private_key }}
@@ -27,8 +26,27 @@ jobs:
         with:
           app-id: ${{ vars.AUTO_PR_APP_ID }}
           private-key: ${{ secrets.auto_pr_private_key }}
-      - name: pull-request
-        uses: diillson/auto-pull-request@4cf50b3681cd76250f37841466e61e514a377064 # v1.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          destination_branch: 'main'
-          github_token: ${{ steps.app_token.outputs.token || secrets.token }}
+          token: ${{ steps.app_token.outputs.token || secrets.token }}
+      - name: Create PR if none exists
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
+        run: |
+          set -euo pipefail
+
+          # Skip if PR already exists for this branch
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          if gh pr list --head "$branch" --json number --jq 'length' | grep -q '^[1-9]'; then
+            echo "PR already exists for branch $branch, skipping."
+            exit 0
+          fi
+
+          # Check head commit for wip:/draft: prefix (case-insensitive)
+          draft_flag=""
+          commit_msg=$(git log -1 --format=%s)
+          if echo "$commit_msg" | grep -iqE '^(wip|draft):'; then
+            draft_flag="--draft"
+          fi
+
+          gh pr create --fill --base main $draft_flag
