@@ -3,11 +3,8 @@ on:
   workflow_call:
     secrets:
       token:
-        description: "Github token"
+        description: "Token with contents:read and pull-requests:write on the calling repo"
         required: true
-      auto_pr_private_key:
-        description: "App Key for using bot"
-        required: false
 
 # No concurrency block — auto-pr is only called via workflow_call from
 # workflows that already have their own concurrency controls.
@@ -17,21 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Create GitHub App Token
-        env:
-          auto_pr_private_key: ${{ secrets.auto_pr_private_key }}
-        if: env.auto_pr_private_key != ''
-        id: app_token
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
-        with:
-          app-id: ${{ vars.AUTO_PR_APP_ID }}
-          private-key: ${{ secrets.auto_pr_private_key }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ steps.app_token.outputs.token || secrets.token }}
+          token: ${{ secrets.token }}
       - name: Create PR if none exists
         env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
+          GH_TOKEN: ${{ secrets.token }}
         run: |
           set -euo pipefail
 
