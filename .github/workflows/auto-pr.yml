@@ -2,7 +2,7 @@ name: auto-pr
 on:
   workflow_call:
     secrets:
-      token:
+      auto_pr_private_key:
         description: "Token with contents:read and pull-requests:write on the calling repo"
         required: true
 
@@ -16,10 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ secrets.token }}
+          token: ${{ secrets.auto_pr_private_key }}
       - name: Create PR if none exists
         env:
-          GH_TOKEN: ${{ secrets.token }}
+          GH_TOKEN: ${{ secrets.auto_pr_private_key }}
         run: |
           set -euo pipefail
 
