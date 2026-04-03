@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   version:
-    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@node-lib
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
     # Inherit permissions from caller
     # permissions:
     #   contents: read
@@ -52,10 +52,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Publish Angular Libraries
-        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@node-lib
+        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@main
         with:
           node_version: ${{ inputs.node_version }}
           workspace_path: ${{ inputs.workspace_path }}
