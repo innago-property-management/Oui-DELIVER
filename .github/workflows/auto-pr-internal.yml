@@ -50,4 +50,10 @@ jobs:
             draft_flag="--draft"
           fi
 
-          gh pr create --fill --base main $draft_flag
+          if ! gh pr create --fill --base main $draft_flag 2>&1; then
+            if gh pr list --head "$branch" --json number --jq 'length' | grep -q '^[1-9]'; then
+              echo "PR was created by another process, skipping."
+              exit 0
+            fi
+            exit 1
+          fi
