@@ -1,0 +1,80 @@
+name: publish-angular-lib
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        required: false
+        type: string
+        default: '18'
+        description: "Node.js version"
+      workspace_path:
+        required: false
+        type: string
+        default: 'Innago-workspace'
+        description: "Relative path to the Angular workspace directory containing the projects/ folder"
+      skip_publish:
+        required: false
+        type: boolean
+        default: false
+        description: "Skip publishing step (build and test only, for PR validation)"
+    secrets:
+      npm_token:
+        required: true
+        description: "GitHub token with packages:write permission for publishing to GitHub Packages"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Remove hardcoded permissions - inherit from caller
+# This allows the caller to set different permissions for PR vs merge
+# permissions:
+#   contents: read
+#   packages: write
+
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    # Inherit permissions from caller
+    # permissions:
+    #   contents: read
+
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [version]
+    # Inherit permissions from caller (allows different perms for PR vs merge)
+    # permissions:
+    #   contents: read
+    #   packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Publish Angular Libraries
+        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-angular-lib@main
+        with:
+          node_version: ${{ inputs.node_version }}
+          workspace_path: ${{ inputs.workspace_path }}
+          npm_token: ${{ secrets.npm_token }}
+          publish: ${{ inputs.skip_publish == false && 'true' || 'false' }}
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## Angular Library ${{ inputs.skip_publish && 'Build & Test' || 'Publish' }} Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | ${{ inputs.skip_publish && 'Build & Test Only' || 'Build, Test & Publish' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node Version | ${{ inputs.node_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workspace | ${{ inputs.workspace_path }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Library | All version-bumped libraries |" >> $GITHUB_STEP_SUMMARY
