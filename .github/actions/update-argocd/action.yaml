@@ -13,6 +13,10 @@ inputs:
   folderName:
     required: true
     description: "Folder name containing the helm values files"
+  updateMigrationTag:
+    required: false
+    default: 'true'
+    description: "Update migrationJob.image.tag in the values file. Set to 'false' for services without migrations."
 runs:
   using: "composite"
   steps:
@@ -41,6 +45,7 @@ runs:
         tag: "${{ inputs.version }}"
         folderName: "${{ inputs.folderName }}"
         repoName: "${{ inputs.repoName }}"
+        UPDATE_MIGRATION_TAG: "${{ inputs.updateMigrationTag }}"
       shell: bash
       run: |-
         set -euo pipefail
@@ -67,11 +72,9 @@ runs:
 
         # Capture old values before update
         OLD_IMAGE_TAG=$(yq '.image.tag' "$fullName") || OLD_IMAGE_TAG=""
-        OLD_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName") || OLD_MIGRATION_TAG=""
 
-        # Update image tags
+        # Update image tag
         yq --inplace ".image.tag=\"${tag}\"" "${fullName}"
-        yq --inplace ".migrationJob.image.tag=\"${tag}\"" "${fullName}"
 
         # Verify image.tag was updated
         NEW_IMAGE_TAG=$(yq '.image.tag' "$fullName")
@@ -80,14 +83,20 @@ runs:
           exit 1
         fi
 
-        # Verify migrationJob.image.tag was updated
-        NEW_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName")
-        if [ "$OLD_MIGRATION_TAG" = "$NEW_MIGRATION_TAG" ] || [ -z "$NEW_MIGRATION_TAG" ] || [ "$NEW_MIGRATION_TAG" = "null" ]; then
-          echo "::error::YAML update failed - migrationJob.image.tag unchanged or path not found (old: '$OLD_MIGRATION_TAG', new: '$NEW_MIGRATION_TAG')"
-          exit 1
-        fi
+        # Conditionally update migrationJob.image.tag
+        if [ "$UPDATE_MIGRATION_TAG" = "true" ]; then
+          OLD_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName") || OLD_MIGRATION_TAG=""
+          yq --inplace ".migrationJob.image.tag=\"${tag}\"" "${fullName}"
 
-        echo "Successfully updated tags: image.tag='$NEW_IMAGE_TAG', migrationJob.image.tag='$NEW_MIGRATION_TAG'"
+          NEW_MIGRATION_TAG=$(yq '.migrationJob.image.tag' "$fullName")
+          if [ "$OLD_MIGRATION_TAG" = "$NEW_MIGRATION_TAG" ] || [ -z "$NEW_MIGRATION_TAG" ] || [ "$NEW_MIGRATION_TAG" = "null" ]; then
+            echo "::error::YAML update failed - migrationJob.image.tag unchanged or path not found (old: '$OLD_MIGRATION_TAG', new: '$NEW_MIGRATION_TAG')"
+            exit 1
+          fi
+          echo "Successfully updated tags: image.tag='$NEW_IMAGE_TAG', migrationJob.image.tag='$NEW_MIGRATION_TAG'"
+        else
+          echo "Successfully updated tag: image.tag='$NEW_IMAGE_TAG' (migration tag update skipped)"
+        fi
 
         git add "${fullName}"
         git commit --message="Update ${environment} to version ${tag}" --allow-empty

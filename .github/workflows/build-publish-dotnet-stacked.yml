@@ -1,0 +1,371 @@
+name: build-publish-dotnet-stacked
+on:
+  workflow_dispatch:
+    inputs:
+      serviceName:
+        required: true
+        description: "Base name for images and ArgoCD folders (e.g., 'tenant-ledger')"
+        type: string
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name (e.g., 'innago-property-management/argocd-shared'). Omit to skip CD."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+      platforms:
+        required: false
+        description: "Target platforms for Docker builds"
+        default: 'linux/amd64,linux/arm64'
+        type: string
+      slsa:
+        required: false
+        default: false
+        description: "Flag to enable SLSA provenance"
+        type: boolean
+
+  workflow_call:
+    inputs:
+      serviceName:
+        required: true
+        description: "Base name for images and ArgoCD folders (e.g., 'tenant-ledger')"
+        type: string
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name (e.g., 'innago-property-management/argocd-shared'). Omit to skip CD."
+        type: string
+        default: ''
+      minimumCoverage:
+        required: false
+        description: "Minimum code coverage percentage"
+        type: number
+        default: 0
+      testProjectPath:
+        required: false
+        description: "Test project discovery is from the solution if this is not set."
+        default: "."
+        type: string
+      platforms:
+        required: false
+        description: "Target platforms for Docker builds"
+        default: 'linux/amd64,linux/arm64'
+        type: string
+      slsa:
+        required: false
+        default: false
+        description: "Flag to enable SLSA provenance"
+        type: boolean
+
+    secrets:
+      githubToken:
+        description: "Github token"
+        required: true
+      cosignKey:
+        description: "Cosign key"
+        required: true
+      cosignPassword:
+        description: "Cosign password"
+        required: true
+
+concurrency:
+  group: build-publish-dotnet-stacked-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: read
+
+# ────────────────────────────────────────────────────────────────────────────
+# Convention: Stacked .NET Architecture
+#
+# Place named Dockerfiles at the repo root:
+#   Dockerfile.PrivateService              → service image + ArgoCD folder
+#   Dockerfile.InternalService             → service image + ArgoCD folder
+#   Dockerfile.PersistenceMigrations       → migrations image (pairs with PrivateService)
+#   Dockerfile.AnythingElse                → service image + ArgoCD folder
+#
+# Naming:
+#   Dockerfile.{PascalName} → image: {serviceName}-{kebab-name}
+#   Dockerfile.{X}Migrations → migrationJob.image.tag in {X}'s ArgoCD folder
+# ────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+    permissions:
+      contents: read
+
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      has_docker: ${{ steps.detect.outputs.has_docker }}
+      has_nuget: ${{ steps.detect.outputs.has_nuget }}
+      has_package: ${{ steps.detect.outputs.has_package }}
+      is_release: ${{ steps.detect.outputs.is_release }}
+      skip_tests: ${{ steps.detect.outputs.skip_tests }}
+    steps:
+      - name: Detect build type
+        id: detect
+        uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@main
+
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      images: ${{ steps.scan.outputs.images }}
+      argocd_updates: ${{ steps.scan.outputs.argocd_updates }}
+      image_count: ${{ steps.scan.outputs.image_count }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            Dockerfile.*
+          sparse-checkout-cone-mode: false
+
+      - name: Discover images from Dockerfile.* convention
+        id: scan
+        shell: bash
+        env:
+          SERVICE_NAME: ${{ inputs.serviceName }}
+        run: |
+          set -euo pipefail
+
+          # PascalCase → kebab-case
+          to_kebab() {
+            echo "$1" | sed 's/\([A-Z]\)/-\1/g' | sed 's/^-//' | tr '[:upper:]' '[:lower:]'
+          }
+
+          images='[]'
+          argocd_updates='[]'
+          has_migrations=false
+          migration_images='[]'
+
+          for df in Dockerfile.*; do
+            [ -f "$df" ] || continue
+            suffix="${df#Dockerfile.}"
+            kebab=$(to_kebab "$suffix")
+            image_name="${SERVICE_NAME}-${kebab}"
+
+            echo "::notice::Discovered: ${df} → ${image_name}"
+
+            if [[ "$suffix" == *Migrations ]]; then
+              has_migrations=true
+              migration_images=$(echo "$migration_images" | jq -c --arg name "$image_name" --arg df "$df" --arg suffix "$suffix" \
+                '. + [{"imageName": $name, "dockerfile": $df, "suffix": $suffix}]')
+            else
+              images=$(echo "$images" | jq -c --arg name "$image_name" --arg df "$df" --arg suffix "$suffix" \
+                '. + [{"imageName": $name, "dockerfile": $df, "suffix": $suffix}]')
+            fi
+          done
+
+          # Merge migrations into the images array (all get built the same way)
+          all_images=$(echo "$images $migration_images" | jq -s '.[0] + .[1]')
+
+          # Collect migration base suffixes (e.g., "ServiceMigrations" → "Service")
+          migration_bases=()
+          for row in $(echo "$migration_images" | jq -r '.[] | @base64'); do
+            msuffix=$(echo "$row" | base64 --decode | jq -r '.suffix')
+            migration_bases+=("${msuffix%Migrations}")
+          done
+
+          # Build ArgoCD updates: one entry per non-migration service
+          # A service gets updateMigrationTag=true if a matching *Migrations Dockerfile exists
+          for row in $(echo "$images" | jq -r '.[] | @base64'); do
+            suffix=$(echo "$row" | base64 --decode | jq -r '.suffix')
+            image_name=$(echo "$row" | base64 --decode | jq -r '.imageName')
+
+            update_migration="false"
+            for base in "${migration_bases[@]}"; do
+              if [[ "$suffix" == "$base" ]]; then
+                update_migration="true"
+                break
+              fi
+            done
+
+            argocd_updates=$(echo "$argocd_updates" | jq -c \
+              --arg folder "$image_name" \
+              --arg updateMigration "$update_migration" \
+              '. + [{"folder": $folder, "updateMigrationTag": $updateMigration}]')
+          done
+
+          echo "images=$(echo "$all_images" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "argocd_updates=$(echo "$argocd_updates" | jq -c '.')" >> "$GITHUB_OUTPUT"
+          echo "image_count=$(echo "$all_images" | jq 'length')" >> "$GITHUB_OUTPUT"
+
+          echo "::group::Discovery summary"
+          echo "Images to build: $(echo "$all_images" | jq -r '.[].imageName' | tr '\n' ', ')"
+          echo "ArgoCD updates: $(echo "$argocd_updates" | jq -c '.')"
+          echo "::endgroup::"
+
+  build-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      pull-requests: write
+    needs: [version, detect]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build and Test
+        if: needs.detect.outputs.skip_tests != 'true'
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@main
+        with:
+          version: ${{ needs.version.outputs.version }}
+          githubToken: "${{ secrets.GITHUB_TOKEN }}"
+          minimumCoverage: "${{ inputs.minimumCoverage }}"
+          testProjectPath: "${{ inputs.testProjectPath }}"
+
+      - name: Build only (no tests — release with tests already passed in PR)
+        if: needs.detect.outputs.skip_tests == 'true'
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          echo "::notice::Skipping tests (Docker-only on release, tests passed in PR)"
+          dotnet nuget add source \
+            --name "github" \
+            "https://nuget.pkg.github.com/innago-property-management/index.json" || true
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Push NuGet packages
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && needs.detect.outputs.has_nuget == 'true'
+        uses: innago-property-management/Oui-DELIVER/.github/actions/push-nuget-packages@main
+        with:
+          pushToken: "${{ secrets.githubToken }}"
+
+      - name: Generate SBOM
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: innago-property-management/Oui-DELIVER/.github/actions/generate-sbom-dotnet@main
+
+      - name: Upload SBOMs
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          path: out/
+          overwrite: 'true'
+          name: 'build-artifact'
+
+  publish-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    needs: [version, detect, discover, build-test]
+    if: needs.discover.outputs.image_count != '0'
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.discover.outputs.images) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build, Publish, and Sign — ${{ matrix.image.imageName }}
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.githubToken }}
+          version: ${{ needs.version.outputs.version }}
+          imageName: ${{ matrix.image.imageName }}
+          organizationName: ${{ github.repository_owner }}
+          imageTitle: ${{ matrix.image.imageName }}
+          imageDescription: "${{ github.event.repository.description }} — ${{ matrix.image.suffix }}"
+          repositoryUrl: ${{ github.event.repository.html_url }}
+          sha: ${{ github.sha }}
+          cosignKey: ${{ secrets.cosignKey }}
+          cosignPassword: ${{ secrets.cosignPassword }}
+          buildArgs: |
+            NUGET_SOURCE_NAME=github
+            NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
+            NUGET_USERNAME=${{ github.actor }}
+          secrets: |
+            nuget_password=${{ secrets.githubToken }}
+          dockerfilePath: ${{ matrix.image.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+
+  update-argocd:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [version, discover, publish-images]
+    if: inputs.argoCdRepoName != ''
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        update: ${{ fromJson(needs.discover.outputs.argocd_updates) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Update ArgoCD — ${{ matrix.update.folder }}
+        uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
+        with:
+          githubToken: ${{ secrets.githubToken }}
+          repoName: ${{ inputs.argoCdRepoName }}
+          version: ${{ needs.version.outputs.version }}
+          folderName: ${{ matrix.update.folder }}
+          updateMigrationTag: ${{ matrix.update.updateMigrationTag }}
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [version, discover, build-test, publish-images]
+    if: always()
+    timeout-minutes: 3
+    steps:
+      - name: Create Job Summary
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          IMAGES: ${{ needs.discover.outputs.images }}
+          IMAGE_COUNT: ${{ needs.discover.outputs.image_count }}
+        run: |
+          {
+            echo "## Build Summary — Stacked Architecture"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Version | ${VERSION} |"
+            echo "| Repository | ${{ github.repository }} |"
+            echo "| Branch | ${{ github.ref_name }} |"
+            echo "| Commit | ${{ github.sha }} |"
+            echo "| Images Built | ${IMAGE_COUNT} |"
+            echo ""
+            echo "### Images"
+            echo ""
+            echo "| Image | Dockerfile |"
+            echo "|-------|------------|"
+            echo "${IMAGES}" | jq -r '.[] | "| \(.imageName) | \(.dockerfile) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  generate_provenance:
+    needs: build-test
+    if: inputs.slsa && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/generate-provenance.yaml@main
+    permissions:
+      attestations: write
+      id-token: write
+      actions: read
+      contents: write
