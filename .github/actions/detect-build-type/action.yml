@@ -47,6 +47,7 @@ runs:
           deno.jsonc
           jsr.json
           Dockerfile
+          Dockerfile.*
           cmd/
         sparse-checkout-cone-mode: false
 
@@ -68,8 +69,8 @@ runs:
       id: detect
       shell: bash
       run: |
-        # Docker
-        if [[ -f "Dockerfile" ]]; then
+        # Docker (root Dockerfile or named Dockerfile.* for stacked architecture)
+        if [[ -f "Dockerfile" ]] || compgen -G "Dockerfile.*" > /dev/null 2>&1; then
           echo "has_docker=true" >> $GITHUB_OUTPUT
           echo "::notice::Detected: Dockerfile"
         else
