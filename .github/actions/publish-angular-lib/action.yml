@@ -44,12 +44,34 @@ runs:
       run: |
         set -e
 
-        # Find merge base to correctly detect changes (HEAD~1 breaks on merge commits)
-        MERGE_BASE=$(git merge-base HEAD origin/main 2>/dev/null || echo "HEAD~1")
+        # After a PR merges into main, HEAD is the merge commit.
+        # We need to diff against the commit just before this merge.
+        #
+        # Strategy:
+        #   - A standard merge commit has 2 parents:
+        #       HEAD^1 = the previous tip of main (before the merge)
+        #       HEAD^2 = the tip of the feature branch
+        #     So diffing HEAD^1..HEAD captures exactly what this PR introduced.
+        #   - A squash/rebase merge has only 1 parent (HEAD~1 = HEAD^1),
+        #     which also works correctly.
+        #   - Fall back to HEAD~1 if parent-count detection fails.
+
+        PARENT_COUNT=$(git cat-file -p HEAD | grep -c "^parent " || echo "1")
+
+        if [ "$PARENT_COUNT" -ge 2 ]; then
+          # True merge commit — compare main before merge vs. after merge
+          BASE_REF="HEAD^1"
+        else
+          # Squash or rebase merge — previous commit is the base
+          BASE_REF="HEAD~1"
+        fi
+
+        echo "Using base ref: $BASE_REF (parent count: $PARENT_COUNT)"
+        echo "Comparing: $(git rev-parse $BASE_REF) → $(git rev-parse HEAD)"
 
         # Match only top-level library package.json files:
         # <workspace>/projects/<lib-name>/package.json (exactly one level deep)
-        CHANGED_PKGS=$(git diff "$MERGE_BASE" HEAD --name-only \
+        CHANGED_PKGS=$(git diff "$BASE_REF" HEAD --name-only \
           | grep -E "^${WORKSPACE}/projects/[^/]+/package\.json$" || true)
 
         if [ -z "$CHANGED_PKGS" ]; then
@@ -68,7 +90,7 @@ runs:
           # Get the package name from package.json (without scope)
           PACKAGE_NAME=$(jq -r '.name' "$PKG_PATH" | sed 's|@innago-property-management/||')
 
-          OLD_VERSION=$(git show "$MERGE_BASE":"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
+          OLD_VERSION=$(git show "$BASE_REF":"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
           NEW_VERSION=$(jq -r '.version' "$PKG_PATH")
 
           if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
