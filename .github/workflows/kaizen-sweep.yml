@@ -96,7 +96,7 @@ jobs:
           git config --global user.email "claude[bot]@users.noreply.github.com"
 
       - name: Run Kaizen Sweep
-        uses: anthropics/claude-code-action@1c8b699d43e9bfed42b48ef15da85d89bab70960 # v1.0.94
+        uses: anthropics/claude-code-action@02438e66d09982e371c6559d3a2ccdff9032f203 # v1.0.77
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
           # Use PAT with workflows permission for repos that have workflow files
