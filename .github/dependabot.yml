@@ -9,3 +9,9 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    # Pin until upstream regression is fixed.
+    # v1.0.83+ subprocess isolation + v1.0.89 OIDC env stripping prevent
+    # the Anthropic SDK subprocess from seeing the API key.
+    # Last known good: v1.0.77. See: anthropics/claude-code-action#1201
+    ignore:
+      - dependency-name: "anthropics/claude-code-action"
