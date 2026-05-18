@@ -17,7 +17,7 @@ on:
     secrets:
       anthropicKey:
         description: "Anthropic API key"
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -42,7 +42,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Check Anthropic API key
+        id: check-key
+        run: |
+          if [ -z "$ANTHROPIC_KEY" ]; then
+            echo "::warning::anthropicKey secret is not configured — skipping Claude code review."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          ANTHROPIC_KEY: ${{ secrets.anthropicKey }}
+
       - name: PR Review
+        if: steps.check-key.outputs.skip != 'true'
         uses: anthropics/claude-code-action@02438e66d09982e371c6559d3a2ccdff9032f203 # v1.0.77
         with:
           anthropic_api_key: ${{ secrets.anthropicKey }}
