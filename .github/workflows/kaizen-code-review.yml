@@ -15,7 +15,7 @@ on:
         description: 'Repository in owner/name format'
     secrets:
       anthropicKey:
-        required: true
+        required: false
       githubToken:
         required: true
 
@@ -43,7 +43,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Check Anthropic API key
+        id: check-key
+        run: |
+          if [ -z "$ANTHROPIC_KEY" ]; then
+            echo "::warning::anthropicKey secret is not configured — skipping Kaizen code review."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          ANTHROPIC_KEY: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
+
       - name: Sparse checkout Oui-DELIVER skill
+        if: steps.check-key.outputs.skip != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: innago-property-management/Oui-DELIVER
@@ -55,6 +68,7 @@ jobs:
 
       - name: Load Kaizen Skill
         id: skill
+        if: steps.check-key.outputs.skip != 'true'
         run: |
           set -euo pipefail
           SKILL_CONTENT=$(cat oui-deliver-checkout/.github/skills/kaizen-review-workflow-client/SKILL.md)
@@ -64,6 +78,7 @@ jobs:
 
       - name: Run Kaizen Code Review
         id: kaizen-review
+        if: steps.check-key.outputs.skip != 'true'
         uses: anthropics/claude-code-action@02438e66d09982e371c6559d3a2ccdff9032f203 # v1.0.77
         with:
           anthropic_api_key: ${{ secrets.anthropicKey || secrets.ANTHROPIC_API_KEY }}
