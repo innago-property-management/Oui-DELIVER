@@ -56,7 +56,9 @@ runs:
         NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
       run: |
         set -euo pipefail
-        # Add GitHub Packages source (auth handled by NuGetPackageSourceCredentials_github env var)
+        # Add GitHub Packages source idempotently (remove first so re-runs on
+        # self-hosted or cached runners do not fail with "source already exists")
+        dotnet nuget remove source github || true
         dotnet nuget add source \
           --name "github" \
           "https://nuget.pkg.github.com/${{ inputs.organization }}/index.json"
@@ -85,12 +87,12 @@ runs:
         verbosity: 'Warning'
         targetdir: 'test/results/coverage'
     - name: Output to markdown
-      if: always()
+      if: ${{ hashFiles('test/results/coverage/Summary.md') != '' }}
       shell: bash
       run: cat test/results/coverage/Summary.md >> $GITHUB_STEP_SUMMARY
     - name: Test Report
       uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
-      if: always()
+      if: ${{ hashFiles('test/results/test_results.trx') != '' }}
       with:
         name: dotnet tests
         path: "test/results/test_results.trx"
