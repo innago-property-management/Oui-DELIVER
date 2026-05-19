@@ -58,7 +58,9 @@ runs:
         set -euo pipefail
         # Add GitHub Packages source idempotently (remove first so re-runs on
         # self-hosted or cached runners do not fail with "source already exists")
-        dotnet nuget remove source github || true
+        if dotnet nuget list source | grep -q '^  github '; then
+          dotnet nuget remove source github
+        fi
         dotnet nuget add source \
           --name "github" \
           "https://nuget.pkg.github.com/${{ inputs.organization }}/index.json"
