@@ -30,6 +30,14 @@ jobs:
         with:
           token: ${{ steps.app_token.outputs.token || secrets.token }}
           fetch-depth: 0
+      - name: Checkout Oui-DELIVER template as fallback
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          token: ${{ steps.app_token.outputs.token || secrets.token }}
+          path: _oui_deliver
+          sparse-checkout: .github/pull_request_template.md
+          sparse-checkout-cone-mode: false
       - name: Fetch base branch for PR diff
         run: git fetch origin main --depth=1
       - name: Create PR if none exists
@@ -61,8 +69,13 @@ jobs:
           fi
 
           # Build PR body: template + commit log appended at the end
+          # Use calling repo's template if present, otherwise fall back to Oui-DELIVER's
           tmp_body=$(mktemp)
-          cat .github/pull_request_template.md > "$tmp_body"
+          if [ -f ".github/pull_request_template.md" ]; then
+            cat ".github/pull_request_template.md" > "$tmp_body"
+          else
+            cat "_oui_deliver/.github/pull_request_template.md" > "$tmp_body"
+          fi
           printf "\n\n## Commits\n" >> "$tmp_body"
           git log --format="- %s" origin/main..HEAD >> "$tmp_body"
 
