@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app_token.outputs.token || secrets.token }}
+          fetch-depth: 0
       - name: Fetch base branch for PR diff
         run: git fetch origin main --depth=1
       - name: Create PR if none exists
@@ -46,12 +47,30 @@ jobs:
 
           # Check head commit for wip:/draft: prefix (case-insensitive)
           draft_flag=""
-          commit_msg=$(git log -1 --format=%s)
-          if echo "$commit_msg" | grep -iqE '^(wip|draft):'; then
+          latest_commit=$(git log -1 --format=%s)
+          if echo "$latest_commit" | grep -iqE '^(wip|draft):'; then
             draft_flag="--draft"
           fi
 
-          if ! gh pr create --fill --base main $draft_flag 2>&1; then
+          commit_count=$(git rev-list --count origin/main..HEAD)
+          if [ "$commit_count" -eq 1 ]; then
+            pr_title="$latest_commit"
+          else
+            # Strip type prefix (e.g. feature/, fix/) then humanize
+            pr_title=$(echo "$branch" | sed 's|.*/||' | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')
+          fi
+
+          # Build PR body: template + commit log appended at the end
+          tmp_body=$(mktemp)
+          cat .github/pull_request_template.md > "$tmp_body"
+          printf "\n\n## Commits\n" >> "$tmp_body"
+          git log --format="- %s" origin/main..HEAD >> "$tmp_body"
+
+          if ! gh pr create \
+            --title "$pr_title" \
+            --body-file "$tmp_body" \
+            --base main \
+            $draft_flag 2>&1; then
             # Gracefully handle race condition where PR was created between our check and create
             if gh pr list --head "$branch" --json number --jq 'length' | grep -q '^[1-9]'; then
               echo "PR was created by another process, skipping."
