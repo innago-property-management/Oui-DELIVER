@@ -39,7 +39,9 @@ jobs:
           sparse-checkout: .github/pull_request_template.md
           sparse-checkout-cone-mode: false
       - name: Fetch base branch for PR diff
-        run: git fetch origin main --depth=1
+        run: |
+          git fetch origin main --depth=1
+          git checkout HEAD -- . 2>/dev/null || true
       - name: Create PR if none exists
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
@@ -61,6 +63,11 @@ jobs:
           fi
 
           commit_count=$(git rev-list --count origin/main..HEAD)
+          if [ "$commit_count" -eq 0 ]; then
+            echo "No commits ahead of main on branch $branch, skipping PR creation."
+            exit 0
+          fi
+
           if [ "$commit_count" -eq 1 ]; then
             pr_title="$latest_commit"
           else
@@ -77,7 +84,7 @@ jobs:
             cat "_oui_deliver/.github/pull_request_template.md" > "$tmp_body"
           fi
           printf "\n\n## Commits\n" >> "$tmp_body"
-          git log --format="- %s" origin/main..HEAD >> "$tmp_body"
+          git log --first-parent --no-merges --format="- %s" origin/main..HEAD >> "$tmp_body"
 
           if ! gh pr create \
             --title "$pr_title" \
