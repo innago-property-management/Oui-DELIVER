@@ -4,6 +4,7 @@ Please include a summary of the change and why it is needed.
 ## Type of Change
 - [ ] Bug fix
 - [ ] New feature
+- [ ] Imrovement
 
 ## Related Ticket
 Github ticket:
