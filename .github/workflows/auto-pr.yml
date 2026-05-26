@@ -39,9 +39,7 @@ jobs:
           sparse-checkout: .github/pull_request_template.md
           sparse-checkout-cone-mode: false
       - name: Fetch base branch for PR diff
-        run: |
-          git fetch origin main --depth=1
-          git checkout HEAD -- . 2>/dev/null || true
+        run: git fetch origin main
       - name: Create PR if none exists
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
@@ -84,7 +82,9 @@ jobs:
             cat "_oui_deliver/.github/pull_request_template.md" > "$tmp_body"
           fi
           printf "\n\n## Commits\n" >> "$tmp_body"
-          git log --first-parent --no-merges --format="- %s" origin/main..HEAD >> "$tmp_body"
+          git log --first-parent --no-merges --format="- %s" origin/main..HEAD | head -50 >> "$tmp_body"
+
+          echo "PR body size: $(wc -c < "$tmp_body") characters"
 
           if ! gh pr create \
             --title "$pr_title" \
