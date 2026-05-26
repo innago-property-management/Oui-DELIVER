@@ -35,6 +35,7 @@ jobs:
       - name: Create PR if none exists
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.token }}
+          AUTO_PR_DEVELOPER: ${{ github.actor }}
         run: |
           set -euo pipefail
 
@@ -60,16 +61,22 @@ jobs:
             pr_title=$(echo "$branch" | sed 's|.*/||' | sed 's/[-_]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')
           fi
 
-          # Build PR body: template + commit log appended at the end
+          # Build PR body: template + developer attribution + commit log appended at the end
           tmp_body=$(mktemp)
           cat .github/pull_request_template.md > "$tmp_body"
+
+          printf "\n\n## Developer\n- @%s\n" "$AUTO_PR_DEVELOPER" >> "$tmp_body"
+
           printf "\n\n## Commits\n" >> "$tmp_body"
           git log --format="- %s" origin/main..HEAD >> "$tmp_body"
+
+          author_label="author:${AUTO_PR_DEVELOPER}"
 
           if ! gh pr create \
             --title "$pr_title" \
             --body-file "$tmp_body" \
             --base main \
+            --label "$author_label" \
             $draft_flag 2>&1; then
             # Gracefully handle race condition where PR was created between our check and create
             if gh pr list --head "$branch" --json number --jq 'length' | grep -q '^[1-9]'; then
