@@ -129,7 +129,7 @@ jobs:
       argocd_updates: ${{ steps.scan.outputs.argocd_updates }}
       image_count: ${{ steps.scan.outputs.image_count }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           sparse-checkout: |
             Dockerfile.*
@@ -221,7 +221,7 @@ jobs:
     needs: [version, detect]
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Build and Test
         if: needs.detect.outputs.skip_tests != 'true'
@@ -280,7 +280,7 @@ jobs:
       matrix:
         image: ${{ fromJson(needs.discover.outputs.images) }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Build, Publish, and Sign — ${{ matrix.image.imageName }}
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
@@ -319,7 +319,7 @@ jobs:
       matrix:
         update: ${{ fromJson(needs.discover.outputs.argocd_updates) }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Update ArgoCD — ${{ matrix.update.folder }}
         uses: innago-property-management/Oui-DELIVER/.github/actions/update-argocd@main
