@@ -47,6 +47,11 @@ on:
         default: false
         description: "flag to enable slsa"
         type: boolean
+      runner:
+        required: false
+        description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
+        type: string
+        default: 'ubuntu-latest'
 
   workflow_call:
     inputs:
@@ -95,6 +100,11 @@ on:
         default: false
         description: "flag to enable slsa"
         type: boolean
+      runner:
+        required: false
+        description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
+        type: string
+        default: 'ubuntu-latest'
 
     secrets:
       githubToken:
@@ -122,7 +132,7 @@ jobs:
       contents: read
 
   detect:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -138,7 +148,7 @@ jobs:
         uses: innago-property-management/Oui-DELIVER/.github/actions/detect-build-type@main
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
