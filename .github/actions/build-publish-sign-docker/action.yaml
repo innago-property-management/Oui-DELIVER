@@ -174,7 +174,8 @@ runs:
         fi
 
         echo "Signing image: ${IMAGE}@${VERIFIED_DIGEST}"
-        cosign sign --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" --recursive=true --yes=true
+        # Key-based signing: skip Rekor tlog upload (avoids flaky rekor.sigstore.dev outages).
+        cosign sign --key env://COSIGN_KEY "${IMAGE}@${VERIFIED_DIGEST}" --recursive=true --yes=true --tlog-upload=false
 
         echo "Verifying signature..."
         cosign verify --key "${COSIGN_PUBLIC_KEY_URL}" "${IMAGE}@${VERIFIED_DIGEST}" || {
@@ -201,7 +202,7 @@ runs:
         fi
 
         echo "Signing migrations image: ${IMAGE}@${DIGEST}"
-        cosign sign --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" --recursive=true --yes=true
+        cosign sign --key env://COSIGN_KEY "${IMAGE}@${DIGEST}" --recursive=true --yes=true --tlog-upload=false
 
         echo "Verifying migrations signature..."
         cosign verify --key "${COSIGN_PUBLIC_KEY_URL}" "${IMAGE}@${DIGEST}" || {
