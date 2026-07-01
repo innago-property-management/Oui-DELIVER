@@ -166,7 +166,7 @@ jobs:
 
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@fix/cosign-skip-rekor-tlog-upload
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
