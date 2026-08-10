@@ -8,10 +8,10 @@ on:
         required: true
         description: "Node version to resolve node/npm dependency"
         type: string
-    secrets: 
+    secrets:
       githubToken:
         description: "Github token"
-        required: true 
+        required: true
       npm_token:
         required: true
         description: "Github token for organization package resolve"
@@ -19,7 +19,7 @@ on:
         required: true
         description: "Chromatic token for storybook publish"
 
-permissions: 
+permissions:
   contents: read
 
 concurrency:
@@ -51,6 +51,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: semgrep-action
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+
   secrets:
     needs: [detect]
     if: needs.detect.outputs.docs_only != 'true'
@@ -62,7 +63,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: GitLeaks
         shell: bash
-        env: 
+        env:
           GITHUB_TOKEN: "${{ secrets.githubToken }}"
         run: |
           REPO_NAME=$(echo "${{ github.repository }}" | cut -d '/' -f 2)
@@ -71,6 +72,7 @@ jobs:
           git config --global --add safe.directory "$WORK_DIR"
           git config --global --add safe.directory "$CONTAINER_WORK_DIR"
           gitleaks git --verbose --log-level trace  --log-opts="-n 10"
+
   format-check:
     needs: [detect]
     if: needs.detect.outputs.docs_only != 'true'
@@ -79,9 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
           npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: npm run format:check
@@ -94,9 +97,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
           npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: npm run lint
@@ -112,7 +116,6 @@ jobs:
           fetch-depth: 0 # Required for Chromatic
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
-          node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -129,9 +132,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
           npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: |
@@ -153,7 +157,6 @@ jobs:
         uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3.2.0
       - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
-          node-version: ${{ inputs.node_version }}
           npm_token: ${{ secrets.npm_token }}
       - name: Outdated Tool
         shell: bash
@@ -163,31 +166,55 @@ jobs:
 
   run-tests:
     needs: [detect, format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
-    if: needs.detect.outputs.docs_only != 'true'
+    if: >-
+      needs.detect.outputs.docs_only != 'true' &&
+      always() &&
+      !cancelled() &&
+      needs.format-check.result == 'success' &&
+      needs.lint-check.result == 'success' &&
+      needs.chromatic.result == 'success' &&
+      needs.sast.result == 'success' &&
+      needs.secrets.result == 'success' &&
+      (needs.vulnerability-check.result == 'success' || needs.vulnerability-check.result == 'skipped') &&
+      (needs.outdated.result == 'success' || needs.outdated.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
         with:
           node-version: ${{ inputs.node_version }}
-          npm_token: ${{ secrets.npm_token }}
           cache: 'npm'
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
+          npm_token: ${{ secrets.npm_token }}
       - run: npm ci --legacy-peer-deps
       - run: NODE_OPTIONS=--max-old-space-size=8192 npm run test:ci
 
   run-build:
     needs: [detect, format-check, lint-check, chromatic, vulnerability-check, sast, secrets, outdated]
-    if: github.event_name == 'pull_request' && needs.detect.outputs.docs_only != 'true'
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.detect.outputs.docs_only != 'true' &&
+      always() &&
+      !cancelled() &&
+      needs.format-check.result == 'success' &&
+      needs.lint-check.result == 'success' &&
+      needs.chromatic.result == 'success' &&
+      needs.sast.result == 'success' &&
+      needs.secrets.result == 'success' &&
+      (needs.vulnerability-check.result == 'success' || needs.vulnerability-check.result == 'skipped') &&
+      (needs.outdated.result == 'success' || needs.outdated.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
-      - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
         with:
           node-version: ${{ inputs.node_version }}
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/setup-npmrc@main
+        with:
           npm_token: ${{ secrets.npm_token }}
-          cache: 'npm'
+      - uses: innago-property-management/Oui-DELIVER/.github/actions/build-angular@main
+        with:
+          node_version: ${{ inputs.node_version }}
