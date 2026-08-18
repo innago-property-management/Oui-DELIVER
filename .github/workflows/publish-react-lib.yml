@@ -1,0 +1,81 @@
+name: publish-react-lib
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        required: false
+        type: string
+        default: '18'
+        description: "Node.js version"
+      workspace_path:
+        required: false
+        type: string
+        default: 'innago-react-workspace'
+        description: "Relative path to the workspace directory whose immediate subfolders are React libraries"
+      skip_publish:
+        required: false
+        type: boolean
+        default: false
+        description: "Skip publishing step (build and test only, for PR validation)"
+      libraries:
+        required: false
+        type: string
+        default: ''
+        description: "Optional space- or comma-separated library folder names to force, bypassing change detection"
+    secrets:
+      npm_token:
+        required: true
+        description: "GitHub token with packages:write permission for publishing to GitHub Packages"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+# Permissions are inherited from the caller, so a PR job can run read-only while
+# the merge job gets packages:write.
+
+jobs:
+  version:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/semver.yml@main
+
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [version]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Change detection diffs the merge commit against its first parent.
+          fetch-depth: 0
+
+      - name: Publish React Libraries
+        id: publish
+        uses: innago-property-management/Oui-DELIVER/.github/actions/publish-react-lib@main
+        with:
+          node_version: ${{ inputs.node_version }}
+          workspace_path: ${{ inputs.workspace_path }}
+          npm_token: ${{ secrets.npm_token }}
+          publish: ${{ inputs.skip_publish == false && 'true' || 'false' }}
+          libraries: ${{ inputs.libraries }}
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## React Library ${{ inputs.skip_publish && 'Build & Test' || 'Publish' }} Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | ${{ inputs.skip_publish && 'Build & Test Only' || 'Build, Test & Publish' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Libraries processed | ${{ steps.publish.outputs.count_processed || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Libraries published | ${{ steps.publish.outputs.count_published || 0 }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Packages | ${{ steps.publish.outputs.published || '_none_' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node Version | ${{ inputs.node_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Workspace | ${{ inputs.workspace_path }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Published versions come from each library's package.json. Repo semver tag (informational): ${{ needs.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

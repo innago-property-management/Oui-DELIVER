@@ -1,0 +1,274 @@
+name: "Publish React Libraries"
+description: "Detects version-bumped React libraries, installs, verifies, builds, tests, and publishes each to GitHub Packages"
+
+inputs:
+  node_version:
+    required: false
+    description: "Node.js version"
+    default: '18'
+  workspace_path:
+    required: false
+    description: "Relative path to the workspace directory whose immediate subfolders are React libraries"
+    default: 'innago-react-workspace'
+  npm_token:
+    required: true
+    description: "GitHub token with packages:write permission for publishing to GitHub Packages"
+  publish:
+    required: false
+    description: "Whether to publish to the NPM registry ('true' or 'false'). If 'false', only builds and tests."
+    default: 'true'
+  libraries:
+    required: false
+    description: >-
+      Optional space- or comma-separated list of library folder names to process,
+      bypassing change detection. Use for a manual re-publish after a version
+      bump has already landed on main. Empty means detect from the commit diff.
+    default: ''
+
+outputs:
+  published:
+    description: "Comma-separated list of name@version that were published"
+    value: ${{ steps.run.outputs.published }}
+  processed:
+    description: "Comma-separated list of library folders that were built and tested"
+    value: ${{ steps.run.outputs.processed }}
+  count_published:
+    description: "Number of libraries published"
+    value: ${{ steps.run.outputs.count_published }}
+  count_processed:
+    description: "Number of libraries built and tested"
+    value: ${{ steps.run.outputs.count_processed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3.9.1
+      with:
+        node-version: ${{ inputs.node_version }}
+        registry-url: 'https://npm.pkg.github.com/'
+        scope: '@innago-property-management'
+
+    - name: Detect version bumps, build, test, and publish
+      id: run
+      shell: bash
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm_token }}
+        WORKSPACE: ${{ inputs.workspace_path }}
+        PUBLISH: ${{ inputs.publish }}
+        LIBRARIES: ${{ inputs.libraries }}
+      run: |
+        set -e
+
+        # Each React library is a self-contained npm package at
+        # <workspace>/<lib>/package.json, with its own lockfile and its own
+        # scripts. The contract a library must satisfy:
+        #
+        #   build     required - produces the publishable output
+        #   test      required to publish - same rule as the Angular pipeline
+        #   verify    optional - runs before build (codegen drift, lint, ...)
+        #   typecheck optional - runs before build
+        #
+        # Publishing happens from the package root, so the package decides what
+        # ships via its "files" and "exports" fields.
+
+        if [ ! -d "$WORKSPACE" ]; then
+          echo "::error::Workspace directory '$WORKSPACE' not found."
+          exit 1
+        fi
+
+        if [ -n "$LIBRARIES" ]; then
+          # Explicit list wins over change detection.
+          CHANGED_PKGS=""
+          for LIB in $(echo "$LIBRARIES" | tr ',' ' '); do
+            PKG="${WORKSPACE}/${LIB}/package.json"
+            if [ ! -f "$PKG" ]; then
+              echo "::error::Requested library '$LIB' has no package.json at $PKG"
+              exit 1
+            fi
+            CHANGED_PKGS="${CHANGED_PKGS}${PKG}"$'\n'
+          done
+          echo "Processing explicitly requested libraries: $LIBRARIES"
+          FORCED="true"
+        else
+          # After a PR merges into main, HEAD is the merge commit.
+          # We need to diff against the commit just before this merge.
+          #
+          # Strategy:
+          #   - A standard merge commit has 2 parents:
+          #       HEAD^1 = the previous tip of main (before the merge)
+          #       HEAD^2 = the tip of the feature branch
+          #     So diffing HEAD^1..HEAD captures exactly what this PR introduced.
+          #   - A squash/rebase merge has only 1 parent (HEAD~1 = HEAD^1),
+          #     which also works correctly.
+          #   - Fall back to HEAD~1 if parent-count detection fails.
+
+          PARENT_COUNT=$(git cat-file -p HEAD | grep -c "^parent " || echo "1")
+
+          if [ "$PARENT_COUNT" -ge 2 ]; then
+            # True merge commit - compare main before merge vs. after merge
+            BASE_REF="HEAD^1"
+          else
+            # Squash or rebase merge - previous commit is the base
+            BASE_REF="HEAD~1"
+          fi
+
+          if ! git rev-parse --verify --quiet "$BASE_REF" > /dev/null; then
+            echo "::warning::Cannot resolve $BASE_REF (shallow clone or initial commit). Nothing to do."
+            exit 0
+          fi
+
+          echo "Using base ref: $BASE_REF (parent count: $PARENT_COUNT)"
+          echo "Comparing: $(git rev-parse $BASE_REF) → $(git rev-parse HEAD)"
+
+          # Match only top-level library package.json files:
+          # <workspace>/<lib-name>/package.json (exactly one level deep)
+          CHANGED_PKGS=$(git diff "$BASE_REF" HEAD --name-only \
+            | grep -E "^${WORKSPACE}/[^/]+/package\.json$" || true)
+          FORCED="false"
+        fi
+
+        if [ -z "$CHANGED_PKGS" ]; then
+          echo "No library versions changed. Nothing to build."
+          echo "published=" >> "$GITHUB_OUTPUT"
+          echo "processed=" >> "$GITHUB_OUTPUT"
+          echo "count_published=0" >> "$GITHUB_OUTPUT"
+          echo "count_processed=0" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        PUBLISHED_LIST=""
+        PROCESSED_LIST=""
+        PUBLISHED=0
+        PROCESSED=0
+        FAILED=0
+
+        for PKG_PATH in $CHANGED_PKGS; do
+          FOLDER_NAME=$(echo "$PKG_PATH" | sed "s|^${WORKSPACE}/||" | cut -d'/' -f1)
+          LIB_DIR="${WORKSPACE}/${FOLDER_NAME}"
+          PACKAGE_NAME=$(jq -r '.name' "$PKG_PATH")
+          NEW_VERSION=$(jq -r '.version' "$PKG_PATH")
+
+          if [ "$FORCED" != "true" ]; then
+            OLD_VERSION=$(git show "$BASE_REF":"$PKG_PATH" 2>/dev/null | jq -r '.version' || echo "")
+            if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+              echo "[$FOLDER_NAME] Version unchanged ($NEW_VERSION) — skipping."
+              continue
+            fi
+            echo "[$FOLDER_NAME] Version bumped: ${OLD_VERSION:-new} → $NEW_VERSION"
+          else
+            echo "[$FOLDER_NAME] Forced run at version $NEW_VERSION"
+          fi
+
+          if [ "$PACKAGE_NAME" = "null" ] || [ -z "$PACKAGE_NAME" ]; then
+            echo "::error::[$FOLDER_NAME] package.json has no name field."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 1. Install. A committed lockfile is required so builds are
+          #    reproducible; fall back to npm install if the library has none.
+          if [ -f "${LIB_DIR}/package-lock.json" ]; then
+            INSTALL_CMD="npm ci --no-audit --no-fund"
+          else
+            echo "::warning::[$FOLDER_NAME] No package-lock.json — falling back to npm install."
+            INSTALL_CMD="npm install --no-audit --no-fund"
+          fi
+          echo "[$FOLDER_NAME] Installing dependencies..."
+          if ! (cd "$LIB_DIR" && $INSTALL_CMD); then
+            echo "::error::[$FOLDER_NAME] Dependency install failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 2. Optional gates, run only when the library defines them.
+          STEP_FAILED="false"
+          for SCRIPT in verify typecheck; do
+            if jq -e --arg s "$SCRIPT" '.scripts[$s]' "$PKG_PATH" > /dev/null 2>&1; then
+              echo "[$FOLDER_NAME] Running '$SCRIPT'..."
+              if ! (cd "$LIB_DIR" && npm run "$SCRIPT"); then
+                echo "::error::[$FOLDER_NAME] '$SCRIPT' failed."
+                STEP_FAILED="true"
+                break
+              fi
+            fi
+          done
+          if [ "$STEP_FAILED" = "true" ]; then
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 3. Build — required.
+          if ! jq -e '.scripts.build' "$PKG_PATH" > /dev/null 2>&1; then
+            echo "::error::[$FOLDER_NAME] No 'build' script in package.json."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+          echo "[$FOLDER_NAME] Building..."
+          if ! (cd "$LIB_DIR" && npm run build); then
+            echo "::error::[$FOLDER_NAME] Build failed."
+            FAILED=$((FAILED + 1))
+            continue
+          fi
+
+          # 4. Test — required to publish, matching the Angular pipeline.
+          if ! jq -e '.scripts.test' "$PKG_PATH" > /dev/null 2>&1; then
+            echo "::warning::[$FOLDER_NAME] No 'test' script found in package.json."
+            if [ "$PUBLISH" = "true" ]; then
+              echo "::error::[$FOLDER_NAME] Cannot publish without tests. Please add a test script before publishing."
+              FAILED=$((FAILED + 1))
+              continue
+            else
+              echo "[$FOLDER_NAME] Skipping tests (not required for build-only mode)."
+            fi
+          else
+            echo "[$FOLDER_NAME] Running tests..."
+            if ! (cd "$LIB_DIR" && npm test); then
+              echo "::error::[$FOLDER_NAME] Tests failed."
+              FAILED=$((FAILED + 1))
+              continue
+            fi
+          fi
+
+          # 5. Publish from the package root — "files"/"exports" decide what ships.
+          if [ "$PUBLISH" = "true" ]; then
+            if (cd "$LIB_DIR" && npm view "${PACKAGE_NAME}@${NEW_VERSION}" version > /dev/null 2>&1); then
+              echo "::warning::[$FOLDER_NAME] ${PACKAGE_NAME}@${NEW_VERSION} is already published — skipping publish."
+              PROCESSED_LIST="${PROCESSED_LIST:+$PROCESSED_LIST, }$FOLDER_NAME"
+              PROCESSED=$((PROCESSED + 1))
+              continue
+            fi
+
+            echo "[$FOLDER_NAME] Publishing from $LIB_DIR..."
+            if ! (cd "$LIB_DIR" && npm publish); then
+              echo "::error::[$FOLDER_NAME] Publish failed."
+              FAILED=$((FAILED + 1))
+              continue
+            fi
+
+            echo "[$FOLDER_NAME] Published ${PACKAGE_NAME}@${NEW_VERSION}"
+            PUBLISHED_LIST="${PUBLISHED_LIST:+$PUBLISHED_LIST, }${PACKAGE_NAME}@${NEW_VERSION}"
+            PUBLISHED=$((PUBLISHED + 1))
+          else
+            echo "[$FOLDER_NAME] Build and test successful (publish skipped)"
+          fi
+
+          PROCESSED_LIST="${PROCESSED_LIST:+$PROCESSED_LIST, }$FOLDER_NAME"
+          PROCESSED=$((PROCESSED + 1))
+        done
+
+        echo "published=$PUBLISHED_LIST" >> "$GITHUB_OUTPUT"
+        echo "processed=$PROCESSED_LIST" >> "$GITHUB_OUTPUT"
+        echo "count_published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+        echo "count_processed=$PROCESSED" >> "$GITHUB_OUTPUT"
+
+        if [ $FAILED -ne 0 ]; then
+          echo "::error::$FAILED library/libraries failed — see errors above."
+          exit 1
+        fi
+
+        if [ "$PUBLISH" = "true" ]; then
+          echo "✅ Published $PUBLISHED library/libraries successfully."
+        else
+          echo "✅ Built and tested $PROCESSED library/libraries successfully (publish skipped)."
+        fi
