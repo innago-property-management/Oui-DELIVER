@@ -53,6 +53,7 @@ jobs:
 | **[build-publish-python.yml](.github/workflows/build-publish-python.yml)** | Build, test, publish Python packages | Python |
 | **[build-publish-nextjs.yml](.github/workflows/build-publish-nextjs.yml)** | Build and deploy Next.js applications | Next.js |
 | **[build-publish-angular.yml](.github/workflows/build-publish-angular.yml)** | Build and deploy Angular applications | Angular |
+| **[publish-react-lib.yml](.github/workflows/publish-react-lib.yml)** | Build, test and publish version-bumped React libraries to GitHub Packages ([docs](.github/workflows/README-PUBLISH-REACT-LIB.md)) | React |
 | **[merge-checks.yml](.github/workflows/merge-checks.yml)** | Security scanning, vulnerability checks, license validation | All |
 | **[kaizen-code-review.yml](.github/workflows/kaizen-code-review.yml)** | AI-powered code quality review following the "Boy Scout Rule" - leave code better than you found it | All |
 | **[deployment-risk-assessment.yml](.github/workflows/deployment-risk-assessment.yml)** | AI-powered deployment risk analysis with Claude | All |
@@ -67,6 +68,7 @@ jobs:
 | **[build-python](.github/actions/build-python/)** | Build and test Python projects |
 | **[build-angular](.github/actions/build-angular/)** | Build Angular applications |
 | **[build-nextjs](.github/actions/build-nextjs/)** | Build Next.js applications |
+| **[publish-react-lib](.github/actions/publish-react-lib/)** | Detect version-bumped React libraries, then install, verify, build, test and publish each |
 | **[build-publish-sign-docker](.github/actions/build-publish-sign-docker/)** | Build, publish, and sign Docker images with Cosign |
 | **[update-argocd](.github/actions/update-argocd/)** | Update ArgoCD values files with new versions |
 | **[push-nuget-packages](.github/actions/push-nuget-packages/)** | Publish NuGet packages to GitHub Packages |
