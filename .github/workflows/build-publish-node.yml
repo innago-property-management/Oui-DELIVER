@@ -56,6 +56,9 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
+      npm_token:
+        description: "Github token for organization package resolve. Omit if the project has no private @innago-property-management dependencies."
+        required: false
 
 concurrency:
   group: build-publish-node-${{ github.ref }}
@@ -99,6 +102,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Authenticate to GitHub Packages
+        env:
+          NPM_TOKEN: ${{ secrets.npm_token }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "@innago-property-management:registry=https://npm.pkg.github.com/" >> ~/.npmrc
+            echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+          fi
       - name: Build
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-node@main
         with:
