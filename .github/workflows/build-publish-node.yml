@@ -56,6 +56,9 @@ on:
       cosignPassword:
         description: "Cosign password"
         required: true
+      npm_token:
+        description: "Github token for organization package resolve. Omit if the project has no private @innago-property-management dependencies."
+        required: false
 
 concurrency:
   group: build-publish-node-${{ github.ref }}
@@ -104,6 +107,7 @@ jobs:
         with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
+          npm_token: "${{ secrets.npm_token }}"
       - name: Generate SBOM
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         shell: bash
