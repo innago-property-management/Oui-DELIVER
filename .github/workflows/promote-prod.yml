@@ -301,7 +301,11 @@ jobs:
           git config user.email "<>"
 
           fileName="helm-values/${FOLDER}/value-overrides-prod-eks.yaml"
-          branchName="automated/prod-${FOLDER}-${VERSION}"
+          # Deliberately NOT the automated/ prefix. argocd-shared auto-merges
+          # ^automated/.* via an app that can bypass rulesets, which would skip the
+          # CODEOWNERS review protecting helm-values/**/value-overrides-prod-eks.yaml.
+          # promote/ leaves the PR for a code owner to approve.
+          branchName="promote/prod-${FOLDER}-${VERSION}"
 
           # value-overrides-prod-eks.yaml declares the tag as a YAML anchor
           # (`tag: &tag 1.2.3`) that is referenced elsewhere in the same file.
@@ -357,7 +361,7 @@ jobs:
           git commit --message "Promote ${FOLDER} to ${VERSION} (${REASON}, was ${PREVIOUS})"
           git push --set-upstream origin "${branchName}"
 
-          echo "Pushed ${branchName}. auto-pr will raise the pull request and auto-merge will merge it."
+          echo "Pushed ${branchName}. auto-pr will raise the pull request; a code owner must approve and merge it."
 
       - name: close deployment record
         if: always() && steps.deployment.outputs.id != ''

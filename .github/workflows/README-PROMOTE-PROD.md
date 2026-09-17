@@ -23,9 +23,13 @@ after the fact.
 ## One-time setup per service
 
 1. **Create the environment.** In the service repo, Settings → Environments → New
-   environment, named `production`. Add the people or team who may approve a
-   release under *Required reviewers*. This is the actual gate — see the security
-   note below.
+   environment, named `production`. Under *Deployment branches and tags* choose
+   **Selected branches and tags** and add the single pattern `main`.
+
+   Required reviewers are **not** available on GitHub Team for private repos (the
+   API returns "Please ensure the billing plan supports the required reviewers
+   protection rule"), so the release approval does not live here — it lives in the
+   ArgoCD repo, see below.
 2. **Add the caller workflow.** Drop the file below into the service repo as
    `.github/workflows/promote-prod.yaml`, setting `folderName` to the service's
    `helm-values` folder. Set `updateMigrationTag: false` if the service has no
@@ -147,9 +151,21 @@ that service on an approval that was never meant for it. The workflow therefore
 requires `folderName` to match `^[a-z0-9][a-z0-9-]*$`, which rejects path separators
 and traversal components. All 199 existing `helm-values` folders satisfy it.
 
-`auto-merge` in the ArgoCD repo merges any branch matching `^automated/.*` without
-human review. This workflow deliberately uses that prefix, because the environment
-approval has already happened by then and a second gate would only slow releases
-down. The consequence is that the environment's *Required reviewers* list is the
-only thing standing between a dispatch and a production release. Keep it populated,
-and keep `workflow_dispatch` permissions on service repos tight.
+Releases are gated in three independent places, none of which needs Enterprise Cloud:
+
+1. **CODEOWNERS in the ArgoCD repo — the release approval.** `.github/CODEOWNERS`
+   already requires a code owner on `helm-values/**/value-overrides-prod-eks.yaml`.
+   This workflow pushes a `promote/` branch, *not* `automated/`, precisely so that
+   `auto-merge` does not pick it up: that job merges `^automated/.*` using an app
+   that is a ruleset bypass actor, which would skip the code owner review entirely.
+   Every production promotion therefore waits for a human named in CODEOWNERS.
+2. **Deployment branches on the environment — the integrity gate.** Restricting the
+   `production` environment to `main` means the only caller definition that can
+   reach production is the reviewed one. Without it, someone could dispatch from a
+   branch where `folderName` pointed at a different service.
+3. **The `folderName` pattern check — the blast-radius gate.** `folderName` decides
+   which service's values file is written, so it is restricted to
+   `^[a-z0-9][a-z0-9-]*$` to reject path separators and traversal components.
+
+Keep `workflow_dispatch` permissions on service repos tight; write access is what
+lets someone start a promotion, even though they cannot complete one alone.
