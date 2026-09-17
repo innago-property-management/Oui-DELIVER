@@ -107,6 +107,7 @@ confirm the values file is shaped the way the workflow expects.
 | Image tag is not in GHCR | Fails before touching the ArgoCD repo |
 | `updateMigrationTag: true` but no `migrationJob.image.tag` | Fails, telling you to set it false |
 | The `&tag` YAML anchor is lost during the edit | Fails rather than push a broken values file |
+| `folderName` is not a plain service name | Fails — see the security note |
 | `dryRun` is set | Validates and prints the diff, then stops before pushing |
 
 That last one guards a real hazard. Every prod values file declares its tag as an
@@ -138,6 +139,13 @@ record too. That record has an empty payload, so the `source` filter excludes it
 do not remove that filter or every release will be counted twice.
 
 ## Security note
+
+`folderName` decides which service's values file gets written, but the environment
+approval that gates the run belongs to the *calling* repo. Left unchecked, a repo
+could pass a folder name that resolves into another service's directory and promote
+that service on an approval that was never meant for it. The workflow therefore
+requires `folderName` to match `^[a-z0-9][a-z0-9-]*$`, which rejects path separators
+and traversal components. All 199 existing `helm-values` folders satisfy it.
 
 `auto-merge` in the ArgoCD repo merges any branch matching `^automated/.*` without
 human review. This workflow deliberately uses that prefix, because the environment

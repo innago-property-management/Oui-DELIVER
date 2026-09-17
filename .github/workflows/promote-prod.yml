@@ -137,6 +137,16 @@ jobs:
           if [ -z "${folder}" ]; then folder="${REPO_NAME}"; fi
           folder=$(echo "${folder}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 
+          # folderName is caller-supplied and decides which service's values file is
+          # written. Without this check a repo could pass a path that resolves into
+          # another service's folder and promote it, even though the environment
+          # approval it passed belongs to its own repo. Every existing helm-values
+          # folder matches this pattern.
+          if [[ ! "${folder}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+            echo "::error::folderName must be lowercase letters, numbers and hyphens only, starting with a letter or number. Got '${folder}'."
+            exit 1
+          fi
+
           prodFile="argocd/helm-values/${folder}/value-overrides-prod-eks.yaml"
           stageFile="argocd/helm-values/${folder}/value-overrides-stage.yaml"
 
