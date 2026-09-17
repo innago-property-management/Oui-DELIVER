@@ -1,0 +1,385 @@
+name: promote-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
+        type: string
+        default: ''
+      version:
+        required: false
+        description: "Version to promote. Leave blank to promote whatever is currently in stage."
+        type: string
+        default: ''
+      reason:
+        required: false
+        description: "Why this is going out. Feeds the change fail rate and rework rate metrics."
+        type: choice
+        options:
+          - planned
+          - rollback
+          - hotfix
+        default: planned
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Defaults to <owner>/argocd-shared."
+        type: string
+        default: ''
+      environmentName:
+        required: false
+        description: "GitHub Environment that gates this promotion. Required reviewers are configured there."
+        type: string
+        default: 'production'
+      updateMigrationTag:
+        required: false
+        description: "Also update migrationJob.image.tag. Set false for services without migrations."
+        type: boolean
+        default: true
+      dryRun:
+        required: false
+        description: "Validate and show the diff, but do not push or record a deployment."
+        type: boolean
+        default: false
+
+  workflow_call:
+    inputs:
+      folderName:
+        required: false
+        description: "ArgoCD helm-values folder name. Defaults to repository name."
+        type: string
+        default: ''
+      version:
+        required: false
+        description: "Version to promote. Leave blank to promote whatever is currently in stage."
+        type: string
+        default: ''
+      reason:
+        required: false
+        description: "planned, rollback or hotfix. Feeds the change fail rate and rework rate metrics."
+        type: string
+        default: 'planned'
+      argoCdRepoName:
+        required: false
+        description: "ArgoCD repo name. Defaults to <owner>/argocd-shared."
+        type: string
+        default: ''
+      environmentName:
+        required: false
+        description: "GitHub Environment that gates this promotion. Required reviewers are configured there."
+        type: string
+        default: 'production'
+      updateMigrationTag:
+        required: false
+        description: "Also update migrationJob.image.tag. Set false for services without migrations."
+        type: boolean
+        default: true
+      dryRun:
+        required: false
+        description: "Validate and show the diff, but do not push or record a deployment."
+        type: boolean
+        default: false
+
+    secrets:
+      githubToken:
+        description: "Token with write access to the ArgoCD repo and read access to GHCR."
+        required: true
+
+concurrency:
+  group: promote-prod-${{ inputs.folderName || github.event.repository.name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  resolve:
+    name: resolve and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      folderName: ${{ steps.resolve.outputs.folderName }}
+      version: ${{ steps.resolve.outputs.version }}
+      currentProd: ${{ steps.resolve.outputs.currentProd }}
+      imageRepository: ${{ steps.resolve.outputs.imageRepository }}
+      isRollback: ${{ steps.resolve.outputs.isRollback }}
+    steps:
+      - name: checkout argocd repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.argoCdRepoName || format('{0}/argocd-shared', github.repository_owner) }}
+          ref: main
+          token: ${{ secrets.githubToken || github.token }}
+          path: argocd
+
+      - name: install yq
+        uses: dcarbone/install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # v1.3.1
+
+      - name: resolve version
+        id: resolve
+        shell: bash
+        env:
+          FOLDER: ${{ inputs.folderName }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          VERSION: ${{ inputs.version }}
+          REASON: ${{ inputs.reason }}
+        run: |-
+          set -euo pipefail
+
+          case "${REASON}" in
+            planned|rollback|hotfix) ;;
+            *) echo "::error::reason must be one of: planned, rollback, hotfix. Got '${REASON}'."; exit 1 ;;
+          esac
+
+          folder="${FOLDER}"
+          if [ -z "${folder}" ]; then folder="${REPO_NAME}"; fi
+          folder=$(echo "${folder}" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+          # folderName is caller-supplied and decides which service's values file is
+          # written. Without this check a repo could pass a path that resolves into
+          # another service's folder and promote it, even though the environment
+          # approval it passed belongs to its own repo. Every existing helm-values
+          # folder matches this pattern.
+          if [[ ! "${folder}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+            echo "::error::folderName must be lowercase letters, numbers and hyphens only, starting with a letter or number. Got '${folder}'."
+            exit 1
+          fi
+
+          prodFile="argocd/helm-values/${folder}/value-overrides-prod-eks.yaml"
+          stageFile="argocd/helm-values/${folder}/value-overrides-stage.yaml"
+
+          if [ ! -f "${prodFile}" ]; then
+            echo "::error::No production values file at helm-values/${folder}/value-overrides-prod-eks.yaml. This service does not deploy to prod-eks."
+            exit 1
+          fi
+
+          currentProd=$(yq '.image.tag' "${prodFile}")
+          imageRepository=$(yq '.image.repository' "${prodFile}")
+
+          if [ -z "${currentProd}" ] || [ "${currentProd}" = "null" ]; then
+            echo "::error::Could not read .image.tag from ${prodFile}."
+            exit 1
+          fi
+
+          version="${VERSION}"
+          if [ -z "${version}" ]; then
+            if [ ! -f "${stageFile}" ]; then
+              echo "::error::No stage file for ${folder}, so there is no default version to promote. Pass a version explicitly."
+              exit 1
+            fi
+            version=$(yq '.image.tag' "${stageFile}")
+            echo "No version supplied. Promoting the version currently in stage: ${version}"
+          fi
+
+          if [ -z "${version}" ] || [ "${version}" = "null" ]; then
+            echo "::error::Could not determine a version to promote."
+            exit 1
+          fi
+
+          if [ "${currentProd}" = "${version}" ]; then
+            echo "::error::Production is already running ${version}. Nothing to promote."
+            exit 1
+          fi
+
+          isRollback=false
+          oldest=$(printf '%s\n%s\n' "${currentProd}" "${version}" | sort -V | head -n 1)
+          if [ "${oldest}" = "${version}" ]; then
+            isRollback=true
+            if [ "${REASON}" != "rollback" ]; then
+              echo "::error::${version} is older than the current production version ${currentProd}. Re-run with reason 'rollback' if that is what you intend."
+              exit 1
+            fi
+            echo "::warning::Rolling production back from ${currentProd} to ${version}."
+          fi
+
+          {
+            echo "folderName=${folder}"
+            echo "version=${version}"
+            echo "currentProd=${currentProd}"
+            echo "imageRepository=${imageRepository}"
+            echo "isRollback=${isRollback}"
+          } >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "### Promotion request"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Service | \`${folder}\` |"
+            echo "| Currently in production | \`${currentProd}\` |"
+            echo "| Promoting to | \`${version}\` |"
+            echo "| Reason | ${REASON} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: verify the image exists
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.githubToken || github.token }}
+          ACTOR: ${{ github.actor }}
+          IMAGE: ${{ steps.resolve.outputs.imageRepository }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |-
+          set -euo pipefail
+          echo "${TOKEN}" | docker login ghcr.io --username "${ACTOR}" --password-stdin
+          if ! docker manifest inspect "${IMAGE}:${VERSION}" > /dev/null 2>&1; then
+            echo "::error::Image ${IMAGE}:${VERSION} was not found in the registry. Nothing to promote."
+            exit 1
+          fi
+          echo "Found ${IMAGE}:${VERSION}"
+
+  promote:
+    name: promote to production
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environmentName }}
+    steps:
+      - name: open deployment record
+        id: deployment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.githubToken || github.token }}
+          FOLDER: ${{ needs.resolve.outputs.folderName }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          PREVIOUS: ${{ needs.resolve.outputs.currentProd }}
+          REASON: ${{ inputs.reason }}
+          ENVIRONMENT: ${{ inputs.environmentName }}
+          DRY_RUN: ${{ inputs.dryRun }}
+        run: |-
+          set -euo pipefail
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "Dry run: no deployment record created."
+            exit 0
+          fi
+          id=$(jq -n \
+            --arg ref "${GITHUB_SHA}" \
+            --arg env "${ENVIRONMENT}" \
+            --arg desc "Promote ${FOLDER} to ${VERSION}" \
+            --arg version "${VERSION}" \
+            --arg previous "${PREVIOUS}" \
+            --arg reason "${REASON}" \
+            --arg service "${FOLDER}" \
+            '{ref:$ref, environment:$env, description:$desc, auto_merge:false, required_contexts:[],
+              payload:{source:"promote-prod", service:$service, version:$version,
+                       previousVersion:$previous, reason:$reason}}' \
+            | gh api "repos/${GITHUB_REPOSITORY}/deployments" --input - --jq '.id')
+          echo "id=${id}" >> "${GITHUB_OUTPUT}"
+          gh api "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses" \
+            --field state=in_progress \
+            --field environment="${ENVIRONMENT}" \
+            --field description="Writing the image tag to the ArgoCD repo" > /dev/null
+
+      - name: checkout argocd repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.argoCdRepoName || format('{0}/argocd-shared', github.repository_owner) }}
+          ref: main
+          token: ${{ secrets.githubToken || github.token }}
+          path: argocd
+
+      - name: install yq
+        uses: dcarbone/install-yq-action@4075b4dca348d74bd83f2bf82d30f25d7c54539b # v1.3.1
+
+      - name: write the image tag
+        shell: bash
+        env:
+          FOLDER: ${{ needs.resolve.outputs.folderName }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          PREVIOUS: ${{ needs.resolve.outputs.currentProd }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+          UPDATE_MIGRATION_TAG: ${{ inputs.updateMigrationTag }}
+          DRY_RUN: ${{ inputs.dryRun }}
+        run: |-
+          set -euo pipefail
+          cd argocd
+
+          git config user.name "${ACTOR}"
+          git config user.email "<>"
+
+          fileName="helm-values/${FOLDER}/value-overrides-prod-eks.yaml"
+          branchName="automated/prod-${FOLDER}-${VERSION}"
+
+          # value-overrides-prod-eks.yaml declares the tag as a YAML anchor
+          # (`tag: &tag 1.2.3`) that is referenced elsewhere in the same file.
+          # yq preserves it on scalar assignment, but assert that rather than trust it:
+          # a yq upgrade that drops the anchor would silently break every prod file.
+          anchorsBefore=$(grep -c 'tag: &tag' "${fileName}" || true)
+
+          git checkout -b "${branchName}"
+
+          oldTag=$(yq '.image.tag' "${fileName}")
+          yq --inplace ".image.tag=\"${VERSION}\"" "${fileName}"
+          newTag=$(yq '.image.tag' "${fileName}")
+
+          if [ "${newTag}" != "${VERSION}" ]; then
+            echo "::error::Failed to set image.tag in ${fileName} (was '${oldTag}', now '${newTag}')."
+            exit 1
+          fi
+
+          if [ "${UPDATE_MIGRATION_TAG}" = "true" ]; then
+            oldMigration=$(yq '.migrationJob.image.tag' "${fileName}")
+            if [ "${oldMigration}" = "null" ]; then
+              echo "::error::updateMigrationTag is true but ${fileName} has no migrationJob.image.tag. Set updateMigrationTag to false for this service."
+              exit 1
+            fi
+            yq --inplace ".migrationJob.image.tag=\"${VERSION}\"" "${fileName}"
+            newMigration=$(yq '.migrationJob.image.tag' "${fileName}")
+            if [ "${newMigration}" != "${VERSION}" ]; then
+              echo "::error::Failed to set migrationJob.image.tag in ${fileName} (was '${oldMigration}', now '${newMigration}')."
+              exit 1
+            fi
+          fi
+
+          anchorsAfter=$(grep -c 'tag: &tag' "${fileName}" || true)
+          if [ "${anchorsBefore}" -gt 0 ] && [ "${anchorsAfter}" -lt "${anchorsBefore}" ]; then
+            echo "::error::The YAML anchor on image.tag was lost during the edit (${anchorsBefore} before, ${anchorsAfter} after). Aborting rather than pushing a broken values file."
+            exit 1
+          fi
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "Dry run. Nothing was pushed. This is the change that would have been committed:"
+            git --no-pager diff -- "${fileName}"
+            {
+              echo "### Dry run — no changes pushed"
+              echo ""
+              echo '```diff'
+              git --no-pager diff -- "${fileName}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git add "${fileName}"
+          git commit --message "Promote ${FOLDER} to ${VERSION} (${REASON}, was ${PREVIOUS})"
+          git push --set-upstream origin "${branchName}"
+
+          echo "Pushed ${branchName}. auto-pr will raise the pull request and auto-merge will merge it."
+
+      - name: close deployment record
+        if: always() && steps.deployment.outputs.id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.githubToken || github.token }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+          ENVIRONMENT: ${{ inputs.environmentName }}
+          OUTCOME: ${{ job.status }}
+          FOLDER: ${{ needs.resolve.outputs.folderName }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |-
+          set -euo pipefail
+          if [ "${OUTCOME}" = "success" ]; then
+            state=success
+            description="${FOLDER} ${VERSION} written to the ArgoCD repo"
+          else
+            state=failure
+            description="Promotion of ${FOLDER} ${VERSION} did not complete"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            --field state="${state}" \
+            --field environment="${ENVIRONMENT}" \
+            --field description="${description}" > /dev/null
+          echo "Deployment ${DEPLOYMENT_ID} marked ${state}."
