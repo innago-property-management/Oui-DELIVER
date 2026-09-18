@@ -1,0 +1,180 @@
+name: pr-metadata-check
+
+# Model v2 section 13.1. Delivery metadata: one release-note label and one
+# linked issue. That is the entire ask of an engineer.
+#
+# THIS CHECK NEVER BLOCKS A MERGE (13.1, 14.9). Its conclusion is always
+# `neutral` — visible in the checks box, no notification, no thread. It
+# escalates to a SINGLE sticky comment, edited in place, only once the pull
+# request has an approval and metadata is still missing. Silent on drafts.
+#
+# Most of this is derivable, so it proposes rather than demands.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      checkerRef:
+        required: false
+        type: string
+        default: 'main'
+        description: >-
+          Ref to take the checker script from. A reusable workflow has no
+          built-in handle on the ref it was called at, so while this workflow
+          is on a branch the caller must pass that branch here — otherwise the
+          checkout silently takes main, where the script does not yet exist.
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  check:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: fetch the checker
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: innago-property-management/Oui-DELIVER
+          ref: ${{ inputs.checkerRef || 'main' }}
+          path: .oui
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: verify the checker is present
+        run: |-
+          test -f .oui/.github/scripts/pr_metadata_check.py || {
+            echo "::error::checker not found at the ref '${{ inputs.checkerRef || 'main' }}'. \
+          Pass checkerRef if this workflow is running from a branch."
+            exit 1; }
+
+      - name: evaluate
+        id: eval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |-
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+
+          # closingIssuesReferences is the only reliable source: it reflects
+          # what GitHub will actually close, not what the body appears to say.
+          gh api graphql -f query='
+            query($owner:String!,$name:String!,$number:Int!){
+              repository(owner:$owner,name:$name){
+                pullRequest(number:$number){
+                  title body isDraft headRefName
+                  labels(first:30){nodes{name}}
+                  closingIssuesReferences(first:20){nodes{number}}
+                  reviews(first:50,states:APPROVED){nodes{state}}
+                  files(first:100){nodes{path}}
+                  commits(first:50){nodes{commit{message}}}
+                }}}' \
+            -F owner="${repo%%/*}" -F name="${repo##*/}" -F number="${PR}" \
+            --jq '.data.repository.pullRequest' > /tmp/pr.json
+
+          python - <<'PYEOF' > /tmp/ctx.json
+          import json
+          pr = json.load(open('/tmp/pr.json'))
+          json.dump({
+              "labels": [n["name"] for n in pr["labels"]["nodes"]],
+              "files": [n["path"] for n in pr["files"]["nodes"]],
+              "closes_issues": [n["number"] for n in pr["closingIssuesReferences"]["nodes"]],
+              "branch": pr["headRefName"],
+              "title": pr["title"],
+              "body": pr["body"],
+              "commit_messages": [n["commit"]["message"] for n in pr["commits"]["nodes"]],
+              "approved": len(pr["reviews"]["nodes"]) > 0,
+              "is_draft": pr["isDraft"],
+          }, open('/tmp/ctx.json', 'w'))
+          PYEOF
+
+          python .oui/.github/scripts/pr_metadata_check.py < /tmp/ctx.json > /tmp/verdict.json
+          cat /tmp/verdict.json
+          {
+            echo "escalate=$(python -c "import json;print(str(json.load(open('/tmp/verdict.json'))['escalate']).lower())")"
+            echo "ok=$(python -c "import json;print(str(json.load(open('/tmp/verdict.json'))['ok']).lower())")"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: publish a neutral check run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |-
+          set -euo pipefail
+          summary=$(python -c "import json;print(json.load(open('/tmp/verdict.json'))['summary'])")
+          detail=$(python - <<'PYEOF'
+          import json
+          v = json.load(open('/tmp/verdict.json'))
+          lines = []
+          if v['proposals']:
+              lines.append("Suggested, based on what this pull request changes:\n")
+              for p in v['proposals']:
+                  if 'label' in p:
+                      lines.append(f"- add the label `{p['label']}` — {p['why']}")
+                  else:
+                      lines.append(f"- add `Closes #{p['issue']}` to the description — {p['why']}")
+          if v['missing']:
+              lines.append("\nThis check never blocks a merge. It exists so release notes and "
+                           "delivery metrics can be derived rather than re-entered.")
+          print("\n".join(lines) or "Nothing to do.")
+          PYEOF
+          )
+          # Always neutral. This check has no failure state by design.
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+            -f name='delivery metadata' \
+            -f head_sha='${{ github.event.pull_request.head.sha }}' \
+            -f status='completed' \
+            -f conclusion='neutral' \
+            -f output[title]="${summary}" \
+            -f output[summary]="${detail}" > /dev/null
+          echo "neutral check published: ${summary}"
+
+      - name: escalate to one sticky comment
+        if: steps.eval.outputs.escalate == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |-
+          set -euo pipefail
+          marker="<!-- delivery-metadata-check -->"
+          body=$(python - <<'PYEOF'
+          import json
+          v = json.load(open('/tmp/verdict.json'))
+          out = ["<!-- delivery-metadata-check -->",
+                 f"This pull request is approved but still missing {' and '.join(v['missing'])}.",
+                 ""]
+          for p in v['proposals']:
+              if 'label' in p:
+                  out.append(f"- Add the label **`{p['label']}`** — {p['why']}.")
+              else:
+                  out.append(f"- Add **`Closes #{p['issue']}`** to the description — {p['why']}.")
+          out += ["",
+                  "One label and one issue link is the whole ask — you write no "
+                  "customer-facing text. Release notes and delivery metrics are "
+                  "derived from these, never re-entered.",
+                  "",
+                  "_This does not block the merge._"]
+          print("\n".join(out))
+          PYEOF
+          )
+          # One comment, edited in place. Never one per push.
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+                       --jq "[.[] | select(.body | contains(\"${marker}\")) | .id] | first // empty")
+          if [ -n "${existing}" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" \
+              -f body="${body}" > /dev/null
+            echo "updated sticky comment ${existing}"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+              -f body="${body}" > /dev/null
+            echo "posted sticky comment"
+          fi
