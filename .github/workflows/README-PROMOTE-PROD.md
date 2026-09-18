@@ -15,17 +15,30 @@ author, no approval and no record. That last part is what makes DORA metrics
 impossible to calculate — deployment frequency and lead time both need a dated,
 queryable production release event.
 
-This workflow produces one. The `reason` input also captures, at the moment of the
-click, whether a release is planned work, a rollback or a hotfix. That is the input
-to change fail rate and deployment rework rate, and it cannot be reliably inferred
-after the fact.
+This workflow makes that step reviewable and attributable: a named person starts
+it, a code owner approves it, and the change lands as a pull request rather than a
+hand edit.
+
+It does **not** record the deployment. Production is a pull-model reconcile, so the
+deployment event is emitted by ArgoCD at sync time into the event store — see the
+metrics and release model, section 5.1. This workflow produces the merge that
+ArgoCD then reconciles, and nothing more.
+
+The `reason` input captures, at the moment of the click, whether a release is
+planned work, a rollback or a hotfix. Rollback is one of the three change-failure
+conditions and is free to capture here; change failure rate itself is derived from
+incident attribution, not from this field alone.
 
 ## One-time setup per service
 
 1. **Create the environment.** In the service repo, Settings → Environments → New
-   environment, named `production`. Add the people or team who may approve a
-   release under *Required reviewers*. This is the actual gate — see the security
-   note below.
+   environment, named `production`. Under *Deployment branches and tags* choose
+   **Selected branches and tags** and add the single pattern `main`.
+
+   Required reviewers are **not** available on GitHub Team for private repos (the
+   API returns "Please ensure the billing plan supports the required reviewers
+   protection rule"), so the release approval does not live here — it lives in the
+   ArgoCD repo, see below.
 2. **Add the caller workflow.** Drop the file below into the service repo as
    `.github/workflows/promote-prod.yaml`, setting `folderName` to the service's
    `helm-values` folder. Set `updateMigrationTag: false` if the service has no
@@ -59,14 +72,12 @@ after the fact.
 
    permissions:
      contents: read
-     deployments: write
 
    jobs:
      promote:
        uses: innago-property-management/Oui-DELIVER/.github/workflows/promote-prod.yml@main
        permissions:
          contents: read
-         deployments: write
        with:
          folderName: help
          version: ${{ inputs.version }}
@@ -117,26 +128,24 @@ still carries its anchor after automated commits — but a `yq` upgrade that cha
 this would silently break every production values file in the org. The check costs
 nothing and fails loudly instead.
 
-## Deployment records
+## Why there are no deployment records here
 
-The promote job creates a GitHub Deployment on the **service** repo with this payload:
+An earlier version of this workflow created a GitHub Deployment on the service
+repo. That has been removed.
 
-```json
-{
-  "source": "promote-prod",
-  "service": "merlin",
-  "version": "21.4.2",
-  "previousVersion": "21.4.1",
-  "reason": "planned"
-}
-```
+The Deployments API records deployments *initiated from a workflow*. Production
+here is a pull-model reconcile: this workflow writes an image tag, ArgoCD notices
+and applies it. Recording a deployment at push time would announce something that
+had not happened yet — and under the code-owner gate it would mark a promotion
+successful that a reviewer might still reject.
 
-and closes it `success` or `failure`. The metrics job reads these, filtering on
-`payload.source == "promote-prod"`.
+Deployment events come from ArgoCD's notification hook into
+`innago-engineering-metrics`, at sync time, carrying what actually landed.
 
-Note that declaring `environment:` on a job makes GitHub create its own deployment
-record too. That record has an empty payload, so the `source` filter excludes it —
-do not remove that filter or every release will be counted twice.
+The `production` environment on the service repo is still required, but only for
+its **deployment-branch policy**: restricting it to `main` is what stops a
+promotion being dispatched from a branch carrying a tampered `folderName`. It
+records nothing. Do not delete it as dead configuration.
 
 ## Security note
 
@@ -147,9 +156,21 @@ that service on an approval that was never meant for it. The workflow therefore
 requires `folderName` to match `^[a-z0-9][a-z0-9-]*$`, which rejects path separators
 and traversal components. All 199 existing `helm-values` folders satisfy it.
 
-`auto-merge` in the ArgoCD repo merges any branch matching `^automated/.*` without
-human review. This workflow deliberately uses that prefix, because the environment
-approval has already happened by then and a second gate would only slow releases
-down. The consequence is that the environment's *Required reviewers* list is the
-only thing standing between a dispatch and a production release. Keep it populated,
-and keep `workflow_dispatch` permissions on service repos tight.
+Releases are gated in three independent places, none of which needs Enterprise Cloud:
+
+1. **CODEOWNERS in the ArgoCD repo — the release approval.** `.github/CODEOWNERS`
+   already requires a code owner on `helm-values/**/value-overrides-prod-eks.yaml`.
+   This workflow pushes a `promote/` branch, *not* `automated/`, precisely so that
+   `auto-merge` does not pick it up: that job merges `^automated/.*` using an app
+   that is a ruleset bypass actor, which would skip the code owner review entirely.
+   Every production promotion therefore waits for a human named in CODEOWNERS.
+2. **Deployment branches on the environment — the integrity gate.** Restricting the
+   `production` environment to `main` means the only caller definition that can
+   reach production is the reviewed one. Without it, someone could dispatch from a
+   branch where `folderName` pointed at a different service.
+3. **The `folderName` pattern check — the blast-radius gate.** `folderName` decides
+   which service's values file is written, so it is restricted to
+   `^[a-z0-9][a-z0-9-]*$` to reject path separators and traversal components.
+
+Keep `workflow_dispatch` permissions on service repos tight; write access is what
+lets someone start a promotion, even though they cannot complete one alone.
