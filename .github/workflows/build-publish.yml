@@ -54,7 +54,7 @@ on:
         default: ''
       extraBuildArgs:
         required: false
-        description: "Additional newline-separated Docker build args appended to the standard NuGet ones (e.g. CACHEBUST=${{ github.run_id }})."
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones, e.g. a CACHEBUST value derived from the run id."
         type: string
         default: ''
       migrationsCacheScope:
@@ -132,7 +132,7 @@ on:
         default: ''
       extraBuildArgs:
         required: false
-        description: "Additional newline-separated Docker build args appended to the standard NuGet ones (e.g. CACHEBUST=${{ github.run_id }})."
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones, e.g. a CACHEBUST value derived from the run id."
         type: string
         default: ''
       migrationsCacheScope:
