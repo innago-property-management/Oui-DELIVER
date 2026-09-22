@@ -260,7 +260,12 @@ jobs:
 
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        # Pinned to this repo's own v3.0.1 tag: that revision of the action declares the
+        # target / migrationsTarget / cacheScope / migrationsCacheScope inputs this
+        # workflow passes. @main does not, and forwarding them there fails the run at
+        # parse time with "Unexpected input(s)". Create the v3.0.1 tag on this commit
+        # before any repo consumes it, or this reference will not resolve.
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v3.0.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
