@@ -37,6 +37,31 @@ on:
         description: "Path to the Dockerfile for the main image build. Relative to repository root."
         type: string
         default: './Dockerfile'
+      target:
+        required: false
+        description: "Build stage to target for the main image (docker build --target)."
+        type: string
+        default: ''
+      migrationsTarget:
+        required: false
+        description: "Build stage to target for the migrations image. Point migrationsDockerfilePath at the same Dockerfile to compile shared projects once."
+        type: string
+        default: ''
+      cacheScope:
+        required: false
+        description: "GHA cache scope for the main image. Defaults to the repository name."
+        type: string
+        default: ''
+      extraBuildArgs:
+        required: false
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones (e.g. CACHEBUST=${{ github.run_id }})."
+        type: string
+        default: ''
+      migrationsCacheScope:
+        required: false
+        description: "GHA cache scope for the migrations image. Set equal to cacheScope to reuse a shared build stage."
+        type: string
+        default: ''
       folderName:
         required: false
         description: "ArgoCD helm-values folder name. Defaults to repository name."
@@ -90,6 +115,31 @@ on:
         description: "Path to the Dockerfile for the main image build. Relative to repository root."
         type: string
         default: './Dockerfile'
+      target:
+        required: false
+        description: "Build stage to target for the main image (docker build --target)."
+        type: string
+        default: ''
+      migrationsTarget:
+        required: false
+        description: "Build stage to target for the migrations image. Point migrationsDockerfilePath at the same Dockerfile to compile shared projects once."
+        type: string
+        default: ''
+      cacheScope:
+        required: false
+        description: "GHA cache scope for the main image. Defaults to the repository name."
+        type: string
+        default: ''
+      extraBuildArgs:
+        required: false
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones (e.g. CACHEBUST=${{ github.run_id }})."
+        type: string
+        default: ''
+      migrationsCacheScope:
+        required: false
+        description: "GHA cache scope for the migrations image. Set equal to cacheScope to reuse a shared build stage."
+        type: string
+        default: ''
       folderName:
         required: false
         description: "ArgoCD helm-values folder name. Defaults to repository name."
@@ -228,11 +278,16 @@ jobs:
             NUGET_SOURCE_NAME=github
             NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
             NUGET_USERNAME=${{ github.actor }}
+            ${{ inputs.extraBuildArgs }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
           dockerfilePath: ${{ inputs.dockerfilePath }}
           migrationsDockerfileContext: ${{ inputs.migrationsDockerfileContext }}
           migrationsDockerfilePath: ${{ inputs.migrationsDockerfilePath }}
+          target: ${{ inputs.target }}
+          migrationsTarget: ${{ inputs.migrationsTarget }}
+          cacheScope: ${{ inputs.cacheScope }}
+          migrationsCacheScope: ${{ inputs.migrationsCacheScope }}
 
       - name: Update ArgoCD
         if: inputs.imageName != ''

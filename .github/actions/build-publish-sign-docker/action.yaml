@@ -58,6 +58,22 @@ inputs:
     required: false
     default: './Dockerfile'
     description: "Path to the Dockerfile for the main image build. Relative to repository root."
+  target:
+    required: false
+    default: ''
+    description: "Build stage to target for the main image (docker build --target). Leave unset to build the final stage."
+  migrationsTarget:
+    required: false
+    default: ''
+    description: "Build stage to target for the migrations image. Set this with migrationsDockerfilePath pointing at the same Dockerfile to compile shared projects once."
+  cacheScope:
+    required: false
+    default: ''
+    description: "GHA cache scope for the main image. Defaults to the repository name."
+  migrationsCacheScope:
+    required: false
+    default: ''
+    description: "GHA cache scope for the migrations image. Defaults to '<repository>-migrations'. Set it equal to cacheScope so a shared build stage is cached once and reused."
   platforms:
     required: false
     default: 'linux/amd64,linux/arm64'
@@ -106,8 +122,9 @@ runs:
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
-        cache-from: type=gha, scope=${{ github.repository }}
-        cache-to: type=gha, mode=max, scope=${{ github.repository }}
+        target: ${{ inputs.target }}
+        cache-from: type=gha, scope=${{ inputs.cacheScope != '' && inputs.cacheScope || github.repository }}
+        cache-to: type=gha, mode=max, scope=${{ inputs.cacheScope != '' && inputs.cacheScope || github.repository }}
     - name: Publish migrations image
       id: publish-migrations
       if: ${{ inputs.migrationsDockerfilePath && (inputs.migrationsDockerfilePath) != '' }}
@@ -137,8 +154,9 @@ runs:
           org.opencontainers.image.version=${{ inputs.version }}
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
-        cache-from: type=gha, scope=${{ github.repository }}-migrations
-        cache-to: type=gha, mode=max, scope=${{ github.repository }}-migrations
+        target: ${{ inputs.migrationsTarget }}
+        cache-from: type=gha, scope=${{ inputs.migrationsCacheScope != '' && inputs.migrationsCacheScope || format('{0}-migrations', github.repository) }}
+        cache-to: type=gha, mode=max, scope=${{ inputs.migrationsCacheScope != '' && inputs.migrationsCacheScope || format('{0}-migrations', github.repository) }}
       
     - name: Verify image in registry
       id: verify-image
