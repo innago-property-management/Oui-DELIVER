@@ -292,7 +292,6 @@ jobs:
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v3.0.1
         with:
           platforms: ${{ inputs.platforms }}
-          platforms: ${{ inputs.platforms }}
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.githubToken }}
