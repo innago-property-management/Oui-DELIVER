@@ -52,6 +52,17 @@ on:
         description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
         type: string
         default: 'ubuntu-latest'
+      platforms:
+        required: false
+        description: >-
+          Target platforms for the container build. Defaults to both
+          architectures, which is what every caller built before this input
+          existed. Building an architecture nothing runs costs real time: the
+          non-native half goes through QEMU emulation and is typically 5-15x
+          slower. Where the cluster is single-architecture, name only that one
+          and pair it with a matching `runner` so the build is native.
+        type: string
+        default: 'linux/amd64,linux/arm64'
 
   workflow_call:
     inputs:
@@ -105,6 +116,17 @@ on:
         description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
         type: string
         default: 'ubuntu-latest'
+      platforms:
+        required: false
+        description: >-
+          Target platforms for the container build. Defaults to both
+          architectures, which is what every caller built before this input
+          existed. Building an architecture nothing runs costs real time: the
+          non-native half goes through QEMU emulation and is typically 5-15x
+          slower. Where the cluster is single-architecture, name only that one
+          and pair it with a matching `runner` so the build is native.
+        type: string
+        default: 'linux/amd64,linux/arm64'
 
     secrets:
       githubToken:
@@ -212,6 +234,7 @@ jobs:
         if: inputs.imageName != ''
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
         with:
+          platforms: ${{ inputs.platforms }}
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.githubToken }}
