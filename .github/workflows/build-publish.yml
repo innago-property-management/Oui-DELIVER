@@ -77,6 +77,18 @@ on:
         description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
         type: string
         default: 'ubuntu-latest'
+      platforms:
+        required: false
+        description: >-
+          Target platforms for the container build. The default is both
+          architectures, which is what every caller built before this input
+          existed, so omitting it changes nothing. Naming a single platform is
+          worth doing where the cluster only runs one: the non-native half is
+          produced under QEMU emulation and is typically 5-15x slower than a
+          native build. Pair it with a matching `runner` (for example
+          `ubuntu-24.04-arm` with `linux/arm64`) so no emulation is needed at all.
+        type: string
+        default: 'linux/amd64,linux/arm64'
 
   workflow_call:
     inputs:
@@ -155,6 +167,18 @@ on:
         description: "GitHub Actions runner label. Use a larger runner label to avoid OOM on large builds."
         type: string
         default: 'ubuntu-latest'
+      platforms:
+        required: false
+        description: >-
+          Target platforms for the container build. The default is both
+          architectures, which is what every caller built before this input
+          existed, so omitting it changes nothing. Naming a single platform is
+          worth doing where the cluster only runs one: the non-native half is
+          produced under QEMU emulation and is typically 5-15x slower than a
+          native build. Pair it with a matching `runner` (for example
+          `ubuntu-24.04-arm` with `linux/arm64`) so no emulation is needed at all.
+        type: string
+        default: 'linux/amd64,linux/arm64'
 
     secrets:
       githubToken:
@@ -267,6 +291,7 @@ jobs:
         # before any repo consumes it, or this reference will not resolve.
         uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v3.0.1
         with:
+          platforms: ${{ inputs.platforms }}
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.githubToken }}
