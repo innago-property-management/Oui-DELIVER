@@ -107,7 +107,7 @@ jobs:
   resolve:
     name: resolve and validate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     outputs:
       folderName: ${{ steps.resolve.outputs.folderName }}
       version: ${{ steps.resolve.outputs.version }}
@@ -242,7 +242,7 @@ jobs:
     name: promote to production
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     # The environment no longer records anything - deployment events come from
     # ArgoCD at sync time, not from this workflow (model v2 section 5.1). It is
     # kept solely for its deployment-branch policy, which restricts promotion to
@@ -384,7 +384,7 @@ jobs:
           # promotions of the SAME service, which is a real conflict and should
           # stop rather than be resolved automatically.
           pushed=false
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7 8; do
             if git push --set-upstream origin "${branchName}"; then
               pushed=true
               break
@@ -396,11 +396,18 @@ jobs:
               echo "::error::Could not rebase onto ${branchName}. That means another promotion of ${FOLDER} is already on this train. Resolve it by hand."
               exit 1
             fi
-            sleep $(( attempt * 3 ))
+            # Exponential backoff with jitter. A fixed ramp makes contending
+            # writers retry in LOCKSTEP -- they collide, all wait the same
+            # amount, and collide again. The random component is what actually
+            # separates them. Sixteen services promoting one train produced
+            # exactly that: the losers never found a gap and exhausted the loop.
+            backoff=$(( (1 << (attempt - 1)) * 10 ))
+            [ "${backoff}" -gt 120 ] && backoff=120
+            sleep $(( backoff + RANDOM % 15 ))
           done
 
           if [ "${pushed}" != "true" ]; then
-            echo "::error::Could not push ${branchName} after 5 attempts."
+            echo "::error::Could not push ${branchName} after 8 attempts."
             exit 1
           fi
 
