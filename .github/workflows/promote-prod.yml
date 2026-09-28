@@ -42,6 +42,11 @@ on:
         description: "Validate and show the diff, but do not push or record a deployment."
         type: boolean
         default: false
+      trainVersion:
+        required: false
+        description: "GitHub milestone title naming the release train, e.g. 20.4.3. Must match a milestone in THIS repository. When set, a release event is dispatched to innago-engineering-metrics so the deployment is stamped with the train. Leave blank for a promotion outside a train."
+        type: string
+        default: ''
 
   workflow_call:
     inputs:
@@ -80,6 +85,11 @@ on:
         description: "Validate and show the diff, but do not push or record a deployment."
         type: boolean
         default: false
+      trainVersion:
+        required: false
+        description: "GitHub milestone title naming the release train, e.g. 20.4.3. Must match a milestone in THIS repository. When set, a release event is dispatched to innago-engineering-metrics so the deployment is stamped with the train. Leave blank for a promotion outside a train."
+        type: string
+        default: ''
 
     secrets:
       githubToken:
@@ -331,3 +341,61 @@ jobs:
           git push --set-upstream origin "${branchName}"
 
           echo "Pushed ${branchName}. auto-pr will raise the pull request; a code owner must approve and merge it."
+
+      # This workflow is the only place that knows the train. The GitOps
+      # dispatcher that produces deployment events watches helm-values for a
+      # changed image tag and sees nothing else, which is why every deployment
+      # recorded so far carries train_version: null.
+      #
+      # Dispatched here rather than after the merge, deliberately: this step
+      # runs while the promotion is still a pull request, so the release record
+      # is on disk before the merge triggers the deployment dispatch that reads
+      # it. Recording early costs nothing if the PR is never merged -- a release
+      # row with no matching deployment is inert.
+      - name: record the release train
+        if: ${{ inputs.trainVersion != '' && !inputs.dryRun }}
+        env:
+          GH_TOKEN: ${{ secrets.githubToken }}
+          FOLDER: ${{ needs.resolve.outputs.folderName }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TRAIN: ${{ inputs.trainVersion }}
+        # A failed dispatch must never fail a promotion that already landed.
+        # The metric is downstream of the deploy, not a gate on it; ingest is
+        # idempotent, so a missed event can be replayed by hand.
+        continue-on-error: true
+        run: |-
+          set -uo pipefail
+
+          # The train must be a milestone that actually exists in this
+          # repository. A typo would otherwise sail through and land as its own
+          # one-service train, quietly fragmenting every per-train figure --
+          # the failure mode is a wrong number, not an error, so it is worth
+          # one API call to rule out.
+          number=$(gh api "repos/${GITHUB_REPOSITORY}/milestones?state=all&per_page=100" \
+                     --jq "[.[] | select(.title == \"${TRAIN}\") | .number] | first" 2>/dev/null || echo "")
+
+          if [ -z "${number}" ] || [ "${number}" = "null" ]; then
+            echo "::warning::no milestone titled '${TRAIN}' in ${GITHUB_REPOSITORY}. Nothing recorded — create the milestone, then replay with the ingest-release workflow."
+            echo "  milestones available:"
+            gh api "repos/${GITHUB_REPOSITORY}/milestones?state=all&per_page=100" \
+              --jq '.[].title' 2>/dev/null | sed 's/^/    /' || true
+            exit 0
+          fi
+
+          # The raw title travels; innago-engineering-metrics normalises it.
+          # The same train is written variously as "20.1.3" and
+          # "KYC Self-Help & Underlying issues(20.1.3)", and normalising in one
+          # place keeps those from becoming two trains.
+          jq -n --arg svc "${FOLDER}" --arg tag "${VERSION}" \
+                --arg title "${TRAIN}" --argjson num "${number}" \
+                --arg sha "${GITHUB_SHA}" \
+                --arg when "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{event_type:"release",
+              client_payload:{service:$svc, artifact_tag:$tag,
+                              milestone_title:$title, milestone_number:$num,
+                              sha:$sha, timestamp:$when}}' \
+          | gh api --method POST \
+              /repos/${GITHUB_REPOSITORY_OWNER}/innago-engineering-metrics/dispatches \
+              --input - \
+          && echo "recorded ${FOLDER} ${VERSION} on milestone ${TRAIN} (#${number})" \
+          || echo "::warning::could not dispatch the release event; replay it with the ingest-release workflow"
