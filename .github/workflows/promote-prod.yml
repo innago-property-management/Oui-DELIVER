@@ -435,10 +435,20 @@ jobs:
           FOLDER: ${{ needs.resolve.outputs.folderName }}
           VERSION: ${{ needs.resolve.outputs.version }}
           TRAIN: ${{ inputs.trainVersion }}
-        # A failed dispatch must never fail a promotion that already landed.
-        # The metric is downstream of the deploy, not a gate on it; ingest is
-        # idempotent, so a missed event can be replayed by hand.
-        continue-on-error: true
+        # Deliberately NOT continue-on-error, and deliberately the last step.
+        #
+        # Two different things can go wrong here and they deserve opposite
+        # treatment. A failed DISPATCH is transient: the deploy is fine, the
+        # event is replayable, so it warns and exits 0. A MISSING MILESTONE is
+        # not transient -- the service shipped on a train it will never appear
+        # on, and every per-train figure is quietly wrong until someone
+        # notices. That has to be visible, so it fails the job.
+        #
+        # Failing here undoes nothing. The promotion branch is pushed and the
+        # pull request opened roughly forty lines above, and no step follows
+        # this one, so a red run costs a red tick and nothing else. That is the
+        # whole point: the deploy still reaches production, and the gap stops
+        # hiding behind a green check.
         run: |-
           set -uo pipefail
 
@@ -451,11 +461,17 @@ jobs:
                      --jq "[.[] | select(.title == \"${TRAIN}\") | .number] | first" 2>/dev/null || echo "")
 
           if [ -z "${number}" ] || [ "${number}" = "null" ]; then
-            echo "::warning::no milestone titled '${TRAIN}' in ${GITHUB_REPOSITORY}. Nothing recorded — create the milestone, then replay with the ingest-release workflow."
-            echo "  milestones available:"
+            echo "::error::${FOLDER} ${VERSION} shipped on train ${TRAIN}, but ${GITHUB_REPOSITORY} has no milestone titled '${TRAIN}'. The promotion is fine and will deploy; the train record is missing."
+            echo "  milestones in this repository:"
             gh api "repos/${GITHUB_REPOSITORY}/milestones?state=all&per_page=100" \
-              --jq '.[].title' 2>/dev/null | sed 's/^/    /' || true
-            exit 0
+              --jq '.[].title' 2>/dev/null | sed 's/^/    /' || echo "    (none)"
+            echo
+            echo "  To repair, create the milestone:"
+            echo "    gh api --method POST repos/${GITHUB_REPOSITORY}/milestones -f title=${TRAIN}"
+            echo "  then replay the event from the argocd-shared merge that carried it:"
+            echo "    scripts/replay-release-events.py --merge <sha> --train ${TRAIN}"
+            echo "  (in innago-engineering-metrics; the ingest is idempotent)"
+            exit 1
           fi
 
           # The raw title travels; innago-engineering-metrics normalises it.
@@ -474,4 +490,9 @@ jobs:
               /repos/${GITHUB_REPOSITORY_OWNER}/innago-engineering-metrics/dispatches \
               --input - \
           && echo "recorded ${FOLDER} ${VERSION} on milestone ${TRAIN} (#${number})" \
-          || echo "::warning::could not dispatch the release event; replay it with the ingest-release workflow"
+          || echo "::warning::could not dispatch the release event for ${FOLDER} ${VERSION}. The promotion is unaffected; replay it with the ingest-release workflow."
+
+          # The dispatch failure above is deliberately not fatal: unlike a
+          # missing milestone, it leaves every input intact, so a replay
+          # recovers the event in full.
+          exit 0
