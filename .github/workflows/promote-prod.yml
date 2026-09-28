@@ -272,6 +272,8 @@ jobs:
           ACTOR: ${{ github.actor }}
           UPDATE_MIGRATION_TAG: ${{ inputs.updateMigrationTag }}
           DRY_RUN: ${{ inputs.dryRun }}
+          # Decides the branch: a train shares one, a lone promotion gets its own.
+          TRAIN: ${{ inputs.trainVersion }}
         run: |-
           set -euo pipefail
           cd argocd
@@ -284,7 +286,25 @@ jobs:
           # ^automated/.* via an app that can bypass rulesets, which would skip the
           # CODEOWNERS review protecting helm-values/**/value-overrides-prod-eks.yaml.
           # promote/ leaves the PR for a code owner to approve.
-          branchName="promote/prod-${FOLDER}-${VERSION}"
+          # A train is meant to arrive as one thing. Promoting five services on
+          # train 20.4.3 used to open five argocd-shared pull requests, five
+          # CODEOWNERS reviews, and five merges that could land hours apart --
+          # at which point the "train" is five independent releases wearing the
+          # same label.
+          #
+          # Keyed on the train instead, they share one branch and one PR. The
+          # GitOps dispatcher still emits one deployment event per service,
+          # because it iterates every changed values file in the merge rather
+          # than assuming one file per commit.
+          #
+          # Without a train it stays per-service: a lone promotion has nothing
+          # to batch with, and sharing a branch would only couple it to whatever
+          # else happened to be promoting.
+          if [ -n "${TRAIN}" ]; then
+            branchName="promote/train-${TRAIN}"
+          else
+            branchName="promote/prod-${FOLDER}-${VERSION}"
+          fi
 
           # value-overrides-prod-eks.yaml declares the tag as a YAML anchor
           # (`tag: &tag 1.2.3`) that is referenced elsewhere in the same file.
@@ -292,7 +312,21 @@ jobs:
           # a yq upgrade that drops the anchor would silently break every prod file.
           anchorsBefore=$(grep -c 'tag: &tag' "${fileName}" || true)
 
-          git checkout -b "${branchName}"
+          # Join the train if it has already left: a branch that exists is one
+          # an earlier service on this train pushed, so this promotion is added
+          # to it rather than starting a rival branch of the same name.
+          #
+          # Existence is the test, not "is there an open PR". A merged promotion
+          # deletes its branch, so a surviving branch means the train has not
+          # landed yet. If someone merges without deleting, the next promotion
+          # on that train reopens it -- visible, and fixed by deleting the branch.
+          if git ls-remote --exit-code --heads origin "${branchName}" >/dev/null 2>&1; then
+            echo "Joining the existing ${branchName}."
+            git fetch --quiet origin "${branchName}"
+            git checkout -B "${branchName}" "origin/${branchName}"
+          else
+            git checkout -b "${branchName}"
+          fi
 
           oldTag=$(yq '.image.tag' "${fileName}")
           yq --inplace ".image.tag=\"${VERSION}\"" "${fileName}"
@@ -338,9 +372,44 @@ jobs:
 
           git add "${fileName}"
           git commit --message "Promote ${FOLDER} to ${VERSION} (${REASON}, was ${PREVIOUS})"
-          git push --set-upstream origin "${branchName}"
 
-          echo "Pushed ${branchName}. auto-pr will raise the pull request; a code owner must approve and merge it."
+          # Services on one train are promoted from their own repositories, so
+          # five runs can reach this line at once. The `concurrency` group above
+          # cannot serialise them: a group is scoped to the repository running
+          # the workflow, and these are five different repositories.
+          #
+          # So the push races, and the loser rebases and tries again. Rebase,
+          # not merge: each promotion touches one values file, so the commits
+          # are independent and replaying is trivial. A conflict here means two
+          # promotions of the SAME service, which is a real conflict and should
+          # stop rather than be resolved automatically.
+          pushed=false
+          for attempt in 1 2 3 4 5; do
+            if git push --set-upstream origin "${branchName}"; then
+              pushed=true
+              break
+            fi
+            echo "Push rejected, another service on this train got there first. Rebasing (attempt ${attempt})."
+            git fetch --quiet origin "${branchName}" || true
+            if ! git rebase "origin/${branchName}"; then
+              git rebase --abort || true
+              echo "::error::Could not rebase onto ${branchName}. That means another promotion of ${FOLDER} is already on this train. Resolve it by hand."
+              exit 1
+            fi
+            sleep $(( attempt * 3 ))
+          done
+
+          if [ "${pushed}" != "true" ]; then
+            echo "::error::Could not push ${branchName} after 5 attempts."
+            exit 1
+          fi
+
+          if [ -n "${TRAIN}" ]; then
+            echo "Pushed ${FOLDER} ${VERSION} onto train ${TRAIN} (${branchName})."
+            echo "Every service on this train shares that branch, so they merge as one pull request and arrive together."
+          else
+            echo "Pushed ${branchName}. auto-pr will raise the pull request; a code owner must approve and merge it."
+          fi
 
       # This workflow is the only place that knows the train. The GitOps
       # dispatcher that produces deployment events watches helm-values for a
