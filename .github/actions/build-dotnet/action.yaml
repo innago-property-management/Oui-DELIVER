@@ -20,6 +20,17 @@ inputs:
     required: true
     description: "Test project discovery is from the solution if this is not set."
     default: "."
+  useMsBuildCoverage:
+    required: false
+    default: "false"
+    description: >-
+      Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+      `dotnet test`. Only set this true for repos that actually reference the
+      coverlet.msbuild package; without it those properties are inert but still
+      cost real time (measured on merlin: 83s vs 59s for byte-identical output,
+      because coverage there comes from coverlet.collector). Note that
+      minimumCoverage is only ENFORCED when this is true - coverlet.collector
+      does not read the /p:Threshold* properties.
   dotnet-version:
     required: false
     description: ".NET SDK version(s) to install - a multi-line string"
@@ -48,6 +59,7 @@ runs:
         MINIMUM_COVERAGE: ${{ inputs.minimumCoverage }}
         REPORTS_PATH: test/results
         TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
+        USE_MSBUILD_COVERAGE: "${{ inputs.useMsBuildCoverage }}"
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ inputs.githubToken }}
         GITHUB_TOKEN: ${{ inputs.githubToken }}
@@ -67,15 +79,24 @@ runs:
         
         dotnet restore
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
+        # coverlet.msbuild properties, only when the repo opts in. They are a no-op
+        # unless that package is referenced, and measurably slow when it is not.
+        MSBUILD_COVERAGE_ARGS=()
+        if [ "${USE_MSBUILD_COVERAGE}" = "true" ]; then
+          MSBUILD_COVERAGE_ARGS=(
+            /p:CollectCoverage=true
+            /p:Threshold="$MINIMUM_COVERAGE"
+            /p:ThresholdType=line
+            /p:ThresholdStat=total
+          )
+        fi
+
         dotnet test ${TEST_PROJECT_PATH} \
           --no-restore \
           --configuration Release \
           --test-adapter-path:. \
           --logger:"trx;LogFileName=test_results.trx" \
-          /p:CollectCoverage=true \
-          /p:Threshold="$MINIMUM_COVERAGE" \
-          /p:ThresholdType=line \
-          /p:ThresholdStat=total \
+          ${MSBUILD_COVERAGE_ARGS[@]+"${MSBUILD_COVERAGE_ARGS[@]}"} \
           --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
           --results-directory="$REPORTS_PATH"
     - name: ReportGenerator

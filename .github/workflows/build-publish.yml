@@ -17,6 +17,15 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0
+      useMsBuildCoverage:
+        required: false
+        description: >-
+          Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+          dotnet test. Only enable for repos that reference the coverlet.msbuild
+          package; elsewhere they are inert but still cost time. minimumCoverage is
+          only enforced when this is true.
+        type: string
+        default: 'false'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -95,6 +104,15 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0
+      useMsBuildCoverage:
+        required: false
+        description: >-
+          Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+          dotnet test. Only enable for repos that reference the coverlet.msbuild
+          package; elsewhere they are inert but still cost time. minimumCoverage is
+          only enforced when this is true.
+        type: string
+        default: 'false'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -219,6 +237,7 @@ jobs:
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
           minimumCoverage: "${{ inputs.minimumCoverage }}"
           testProjectPath: "${{ inputs.testProjectPath }}"
+          useMsBuildCoverage: "${{ inputs.useMsBuildCoverage }}"
 
       - name: Build only (no tests - Docker-only release)
         # Skip tests on release for Docker-only repos:
