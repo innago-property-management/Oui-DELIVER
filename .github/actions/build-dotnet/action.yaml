@@ -20,6 +20,40 @@ inputs:
     required: true
     description: "Test project discovery is from the solution if this is not set."
     default: "."
+  disableAnalyzers:
+    required: false
+    default: "false"
+    description: >-
+      Pass -p:RunAnalyzersDuringBuild=false and friends to `dotnet build`. The
+      Dockerfiles in these repos already build this way; the CI build step does not,
+      so the same code is analysed on every run. Measured on merlin: 39.1s -> 21.0s
+      for a clean rebuild (-46%). Only enable where analyzer findings are surfaced
+      elsewhere (e.g. PR builds or a dedicated job), since this silences them here.
+  generateCoverageReport:
+    required: false
+    default: "true"
+    description: >-
+      Run ReportGenerator and write the markdown summary. Costs ~37s on merlin and
+      is pointless when minimumCoverage is 0 and nothing consumes the report.
+  coverageFormats:
+    required: false
+    default: "cobertura,opencover"
+    description: >-
+      Formats for the XPlat Code Coverage collector. ReportGenerator below reads
+      coverage.opencover.xml, so opencover must stay in the list if
+      generateCoverageReport is true. Narrow to just 'opencover' to skip emitting
+      a second report nobody reads.
+  useMsBuildCoverage:
+    required: false
+    default: "false"
+    description: >-
+      Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+      `dotnet test`. Only set this true for repos that actually reference the
+      coverlet.msbuild package; without it those properties are inert but still
+      cost real time (measured on merlin: 83s vs 59s for byte-identical output,
+      because coverage there comes from coverlet.collector). Note that
+      minimumCoverage is only ENFORCED when this is true - coverlet.collector
+      does not read the /p:Threshold* properties.
   dotnet-version:
     required: false
     description: ".NET SDK version(s) to install - a multi-line string"
@@ -48,6 +82,9 @@ runs:
         MINIMUM_COVERAGE: ${{ inputs.minimumCoverage }}
         REPORTS_PATH: test/results
         TEST_PROJECT_PATH: "${{ inputs.testProjectPath }}"
+        USE_MSBUILD_COVERAGE: "${{ inputs.useMsBuildCoverage }}"
+        DISABLE_ANALYZERS: "${{ inputs.disableAnalyzers }}"
+        COVERAGE_FORMATS: "${{ inputs.coverageFormats }}"
         GHCR_USER: ${{ github.actor }}
         GHCR_TOKEN: ${{ inputs.githubToken }}
         GITHUB_TOKEN: ${{ inputs.githubToken }}
@@ -66,19 +103,60 @@ runs:
           "https://nuget.pkg.github.com/${{ inputs.organization }}/index.json"
         
         dotnet restore
-        dotnet build --configuration Release --no-restore /p:Version="$VERSION"
+        # Analyzers are a large share of compile time and are already disabled in the
+        # Dockerfiles. Opt in per repo rather than changing this for everyone.
+        ANALYZER_ARGS=()
+        if [ "${DISABLE_ANALYZERS}" = "true" ]; then
+          ANALYZER_ARGS=(
+            -p:RunAnalyzersDuringBuild=false
+            -p:EnableNETAnalyzers=false
+            -p:EnforceCodeStyleInBuild=false
+            -p:AnalysisLevel=none
+          )
+        fi
+
+        dotnet build --configuration Release --no-restore /p:Version="$VERSION" \
+          ${ANALYZER_ARGS[@]+"${ANALYZER_ARGS[@]}"}
+        # coverlet.msbuild properties, only when the repo opts in. They are a no-op
+        # unless that package is referenced, and measurably slow when it is not.
+        #
+        # The two branches are coupled on purpose:
+        #
+        #   opted IN  - coverlet.msbuild instruments during the BUILD, so `dotnet test`
+        #               must be allowed to run its own build pass. --no-build would
+        #               silently produce no coverage.
+        #   opted OUT - coverlet.collector instruments at RUNTIME via the data
+        #               collector, so the assemblies produced by the `dotnet build`
+        #               above are reusable as-is and the implicit second build is pure
+        #               waste. Measured on merlin: that pass recompiled all 7 projects
+        #               and cost ~80s of a ~280s step, because passing /p: properties
+        #               here that were absent from `dotnet build` changes the project
+        #               fingerprint and forces a FULL rebuild rather than an
+        #               incremental one.
+        MSBUILD_COVERAGE_ARGS=()
+        BUILD_REUSE_ARGS=()
+        if [ "${USE_MSBUILD_COVERAGE}" = "true" ]; then
+          MSBUILD_COVERAGE_ARGS=(
+            /p:CollectCoverage=true
+            /p:Threshold="$MINIMUM_COVERAGE"
+            /p:ThresholdType=line
+            /p:ThresholdStat=total
+          )
+        else
+          BUILD_REUSE_ARGS=(--no-build)
+        fi
+
         dotnet test ${TEST_PROJECT_PATH} \
           --no-restore \
           --configuration Release \
           --test-adapter-path:. \
           --logger:"trx;LogFileName=test_results.trx" \
-          /p:CollectCoverage=true \
-          /p:Threshold="$MINIMUM_COVERAGE" \
-          /p:ThresholdType=line \
-          /p:ThresholdStat=total \
-          --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
+          ${BUILD_REUSE_ARGS[@]+"${BUILD_REUSE_ARGS[@]}"} \
+          ${MSBUILD_COVERAGE_ARGS[@]+"${MSBUILD_COVERAGE_ARGS[@]}"} \
+          --collect:"XPlat Code Coverage;Format=${COVERAGE_FORMATS}" \
           --results-directory="$REPORTS_PATH"
     - name: ReportGenerator
+      if: ${{ inputs.generateCoverageReport == 'true' }}
       uses: im-open/code-coverage-report-generator@4a07a939910b02a25199c538778e8b38607dbcf5 # v5.0.0
       with:
         reports: '*/**/coverage.opencover.xml'
@@ -89,7 +167,7 @@ runs:
         verbosity: 'Warning'
         targetdir: 'test/results/coverage'
     - name: Output to markdown
-      if: ${{ hashFiles('test/results/coverage/Summary.md') != '' }}
+      if: ${{ inputs.generateCoverageReport == 'true' && hashFiles('test/results/coverage/Summary.md') != '' }}
       shell: bash
       run: cat test/results/coverage/Summary.md >> $GITHUB_STEP_SUMMARY
     - name: Test Report

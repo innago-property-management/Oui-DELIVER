@@ -17,6 +17,37 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0
+      useMsBuildCoverage:
+        required: false
+        description: >-
+          Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+          dotnet test. Only enable for repos that reference the coverlet.msbuild
+          package; elsewhere they are inert but still cost time. minimumCoverage is
+          only enforced when this is true.
+        type: string
+        default: 'false'
+      disableAnalyzers:
+        required: false
+        description: >-
+          Disable Roslyn analyzers during the CI build. The Dockerfiles already build
+          this way; measured on merlin at -46% of build time. Only enable where
+          analyzer findings are surfaced elsewhere.
+        type: string
+        default: 'false'
+      generateCoverageReport:
+        required: false
+        description: >-
+          Run ReportGenerator and write the markdown summary. Skip it when
+          minimumCoverage is 0 and nothing reads the report.
+        type: string
+        default: 'true'
+      coverageFormats:
+        required: false
+        description: >-
+          Formats for the coverage collector. ReportGenerator reads
+          coverage.opencover.xml, so keep opencover if generateCoverageReport is true.
+        type: string
+        default: 'cobertura,opencover'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -37,6 +68,31 @@ on:
         description: "Path to the Dockerfile for the main image build. Relative to repository root."
         type: string
         default: './Dockerfile'
+      target:
+        required: false
+        description: "Build stage to target for the main image (docker build --target)."
+        type: string
+        default: ''
+      migrationsTarget:
+        required: false
+        description: "Build stage to target for the migrations image. Point migrationsDockerfilePath at the same Dockerfile to compile shared projects once."
+        type: string
+        default: ''
+      cacheScope:
+        required: false
+        description: "GHA cache scope for the main image. Defaults to the repository name."
+        type: string
+        default: ''
+      extraBuildArgs:
+        required: false
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones, e.g. a CACHEBUST value derived from the run id."
+        type: string
+        default: ''
+      migrationsCacheScope:
+        required: false
+        description: "GHA cache scope for the migrations image. Set equal to cacheScope to reuse a shared build stage."
+        type: string
+        default: ''
       folderName:
         required: false
         description: "ArgoCD helm-values folder name. Defaults to repository name."
@@ -70,6 +126,37 @@ on:
         description: "Minimum code coverage percentage"
         type: number
         default: 0
+      useMsBuildCoverage:
+        required: false
+        description: >-
+          Pass coverlet.msbuild's /p:CollectCoverage and /p:Threshold* properties to
+          dotnet test. Only enable for repos that reference the coverlet.msbuild
+          package; elsewhere they are inert but still cost time. minimumCoverage is
+          only enforced when this is true.
+        type: string
+        default: 'false'
+      disableAnalyzers:
+        required: false
+        description: >-
+          Disable Roslyn analyzers during the CI build. The Dockerfiles already build
+          this way; measured on merlin at -46% of build time. Only enable where
+          analyzer findings are surfaced elsewhere.
+        type: string
+        default: 'false'
+      generateCoverageReport:
+        required: false
+        description: >-
+          Run ReportGenerator and write the markdown summary. Skip it when
+          minimumCoverage is 0 and nothing reads the report.
+        type: string
+        default: 'true'
+      coverageFormats:
+        required: false
+        description: >-
+          Formats for the coverage collector. ReportGenerator reads
+          coverage.opencover.xml, so keep opencover if generateCoverageReport is true.
+        type: string
+        default: 'cobertura,opencover'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -90,6 +177,31 @@ on:
         description: "Path to the Dockerfile for the main image build. Relative to repository root."
         type: string
         default: './Dockerfile'
+      target:
+        required: false
+        description: "Build stage to target for the main image (docker build --target)."
+        type: string
+        default: ''
+      migrationsTarget:
+        required: false
+        description: "Build stage to target for the migrations image. Point migrationsDockerfilePath at the same Dockerfile to compile shared projects once."
+        type: string
+        default: ''
+      cacheScope:
+        required: false
+        description: "GHA cache scope for the main image. Defaults to the repository name."
+        type: string
+        default: ''
+      extraBuildArgs:
+        required: false
+        description: "Additional newline-separated Docker build args appended to the standard NuGet ones, e.g. a CACHEBUST value derived from the run id."
+        type: string
+        default: ''
+      migrationsCacheScope:
+        required: false
+        description: "GHA cache scope for the migrations image. Set equal to cacheScope to reuse a shared build stage."
+        type: string
+        default: ''
       folderName:
         required: false
         description: "ArgoCD helm-values folder name. Defaults to repository name."
@@ -163,12 +275,19 @@ jobs:
       - name: Build and Test
         # Skip on release for Docker-only repos (tests already passed in PR)
         if: needs.detect.outputs.skip_tests != 'true'
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@main
+        # Pinned to v3.0.1 for the same reason as build-publish-sign-docker below:
+        # this workflow passes useMsBuildCoverage, which only that revision declares.
+        # @main would fail the run at parse time with "Unexpected input(s)".
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@v3.0.1
         with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
           minimumCoverage: "${{ inputs.minimumCoverage }}"
           testProjectPath: "${{ inputs.testProjectPath }}"
+          useMsBuildCoverage: "${{ inputs.useMsBuildCoverage }}"
+          disableAnalyzers: "${{ inputs.disableAnalyzers }}"
+          generateCoverageReport: "${{ inputs.generateCoverageReport }}"
+          coverageFormats: "${{ inputs.coverageFormats }}"
 
       - name: Build only (no tests - Docker-only release)
         # Skip tests on release for Docker-only repos:
@@ -210,7 +329,11 @@ jobs:
 
       - name: Publish Container Image
         if: inputs.imageName != ''
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@main
+        # Pinned to this repo's own v3.0.1 tag: that revision of the action declares the
+        # target / migrationsTarget / cacheScope / migrationsCacheScope inputs this
+        # workflow passes. @main does not, and forwarding them there fails the run at
+        # parse time with "Unexpected input(s)". Keep the tag on this commit.
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-publish-sign-docker@v3.0.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -228,11 +351,16 @@ jobs:
             NUGET_SOURCE_NAME=github
             NUGET_SOURCE_URL=https://nuget.pkg.github.com/innago-property-management/index.json
             NUGET_USERNAME=${{ github.actor }}
+            ${{ inputs.extraBuildArgs }}
           secrets: |
             nuget_password=${{ secrets.githubToken }}
           dockerfilePath: ${{ inputs.dockerfilePath }}
           migrationsDockerfileContext: ${{ inputs.migrationsDockerfileContext }}
           migrationsDockerfilePath: ${{ inputs.migrationsDockerfilePath }}
+          target: ${{ inputs.target }}
+          migrationsTarget: ${{ inputs.migrationsTarget }}
+          cacheScope: ${{ inputs.cacheScope }}
+          migrationsCacheScope: ${{ inputs.migrationsCacheScope }}
 
       - name: Update ArgoCD
         if: inputs.imageName != ''
