@@ -76,7 +76,7 @@ inputs:
     description: "GHA cache scope for the migrations image. Defaults to '<repository>-migrations'. Set it equal to cacheScope so a shared build stage is cached once and reused."
   platforms:
     required: false
-    default: 'linux/amd64,linux/arm64'
+    default: 'linux/arm64'
     description: "Target platforms for the Docker build (e.g., 'linux/amd64,linux/arm64' or 'linux/arm64')"
 runs:
   using: "composite"
