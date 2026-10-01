@@ -81,7 +81,22 @@ runs:
         dotnet build --configuration Release --no-restore /p:Version="$VERSION"
         # coverlet.msbuild properties, only when the repo opts in. They are a no-op
         # unless that package is referenced, and measurably slow when it is not.
+        #
+        # The two branches are coupled on purpose:
+        #
+        #   opted IN  - coverlet.msbuild instruments during the BUILD, so `dotnet test`
+        #               must be allowed to run its own build pass. --no-build would
+        #               silently produce no coverage.
+        #   opted OUT - coverlet.collector instruments at RUNTIME via the data
+        #               collector, so the assemblies produced by the `dotnet build`
+        #               above are reusable as-is and the implicit second build is pure
+        #               waste. Measured on merlin: that pass recompiled all 7 projects
+        #               and cost ~80s of a ~280s step, because passing /p: properties
+        #               here that were absent from `dotnet build` changes the project
+        #               fingerprint and forces a FULL rebuild rather than an
+        #               incremental one.
         MSBUILD_COVERAGE_ARGS=()
+        BUILD_REUSE_ARGS=()
         if [ "${USE_MSBUILD_COVERAGE}" = "true" ]; then
           MSBUILD_COVERAGE_ARGS=(
             /p:CollectCoverage=true
@@ -89,6 +104,8 @@ runs:
             /p:ThresholdType=line
             /p:ThresholdStat=total
           )
+        else
+          BUILD_REUSE_ARGS=(--no-build)
         fi
 
         dotnet test ${TEST_PROJECT_PATH} \
@@ -96,6 +113,7 @@ runs:
           --configuration Release \
           --test-adapter-path:. \
           --logger:"trx;LogFileName=test_results.trx" \
+          ${BUILD_REUSE_ARGS[@]+"${BUILD_REUSE_ARGS[@]}"} \
           ${MSBUILD_COVERAGE_ARGS[@]+"${MSBUILD_COVERAGE_ARGS[@]}"} \
           --collect:"XPlat Code Coverage;Format=cobertura,opencover" \
           --results-directory="$REPORTS_PATH"
