@@ -26,6 +26,28 @@ on:
           only enforced when this is true.
         type: string
         default: 'false'
+      disableAnalyzers:
+        required: false
+        description: >-
+          Disable Roslyn analyzers during the CI build. The Dockerfiles already build
+          this way; measured on merlin at -46% of build time. Only enable where
+          analyzer findings are surfaced elsewhere.
+        type: string
+        default: 'false'
+      generateCoverageReport:
+        required: false
+        description: >-
+          Run ReportGenerator and write the markdown summary. Skip it when
+          minimumCoverage is 0 and nothing reads the report.
+        type: string
+        default: 'true'
+      coverageFormats:
+        required: false
+        description: >-
+          Formats for the coverage collector. ReportGenerator reads
+          coverage.opencover.xml, so keep opencover if generateCoverageReport is true.
+        type: string
+        default: 'cobertura,opencover'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -113,6 +135,28 @@ on:
           only enforced when this is true.
         type: string
         default: 'false'
+      disableAnalyzers:
+        required: false
+        description: >-
+          Disable Roslyn analyzers during the CI build. The Dockerfiles already build
+          this way; measured on merlin at -46% of build time. Only enable where
+          analyzer findings are surfaced elsewhere.
+        type: string
+        default: 'false'
+      generateCoverageReport:
+        required: false
+        description: >-
+          Run ReportGenerator and write the markdown summary. Skip it when
+          minimumCoverage is 0 and nothing reads the report.
+        type: string
+        default: 'true'
+      coverageFormats:
+        required: false
+        description: >-
+          Formats for the coverage collector. ReportGenerator reads
+          coverage.opencover.xml, so keep opencover if generateCoverageReport is true.
+        type: string
+        default: 'cobertura,opencover'
       testProjectPath:
         required: false
         description: "Test project discovery is from the solution if this is not set."
@@ -241,6 +285,9 @@ jobs:
           minimumCoverage: "${{ inputs.minimumCoverage }}"
           testProjectPath: "${{ inputs.testProjectPath }}"
           useMsBuildCoverage: "${{ inputs.useMsBuildCoverage }}"
+          disableAnalyzers: "${{ inputs.disableAnalyzers }}"
+          generateCoverageReport: "${{ inputs.generateCoverageReport }}"
+          coverageFormats: "${{ inputs.coverageFormats }}"
 
       - name: Build only (no tests - Docker-only release)
         # Skip tests on release for Docker-only repos:
