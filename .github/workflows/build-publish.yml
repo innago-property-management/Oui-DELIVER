@@ -231,7 +231,10 @@ jobs:
       - name: Build and Test
         # Skip on release for Docker-only repos (tests already passed in PR)
         if: needs.detect.outputs.skip_tests != 'true'
-        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@main
+        # Pinned to v3.0.1 for the same reason as build-publish-sign-docker below:
+        # this workflow passes useMsBuildCoverage, which only that revision declares.
+        # @main would fail the run at parse time with "Unexpected input(s)".
+        uses: innago-property-management/Oui-DELIVER/.github/actions/build-dotnet@v3.0.1
         with:
           version: ${{ needs.version.outputs.version }}
           githubToken: "${{ secrets.GITHUB_TOKEN }}"
