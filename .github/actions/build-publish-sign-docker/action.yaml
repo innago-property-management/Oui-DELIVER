@@ -123,6 +123,18 @@ runs:
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
         target: ${{ inputs.target }}
+        # Attestations force buildx to publish an OCI image INDEX even for a
+        # single-platform build. An index means consumers must platform-match, and
+        # the bank-vaults webhook's ENTRYPOINT lookup asks for linux/amd64 — which
+        # an arm64-only index cannot satisfy. Its failurePolicy is Ignore, so the
+        # pod is admitted UNMUTATED and every "vault:..." value reaches the app as
+        # a literal string (Npgsql fails at index 0; RabbitMQ returns ACCESS_REFUSED).
+        # Disabling attestations publishes a plain manifest instead, which any
+        # consumer accepts regardless of the platform it asks for.
+        # Safe here: cosign signs by digest, and SLSA provenance is produced by the
+        # separate generate-provenance.yaml job over workflow files and artifacts.
+        provenance: false
+        sbom: false
         cache-from: type=gha, scope=${{ inputs.cacheScope != '' && inputs.cacheScope || github.repository }}
         cache-to: type=gha, mode=max, scope=${{ inputs.cacheScope != '' && inputs.cacheScope || github.repository }}
     - name: Publish migrations image
@@ -155,6 +167,9 @@ runs:
         build-args: ${{ inputs.buildArgs }}
         secrets: ${{ inputs.secrets }}
         target: ${{ inputs.migrationsTarget }}
+        # Same reason as the main image above.
+        provenance: false
+        sbom: false
         cache-from: type=gha, scope=${{ inputs.migrationsCacheScope != '' && inputs.migrationsCacheScope || format('{0}-migrations', github.repository) }}
         cache-to: type=gha, mode=max, scope=${{ inputs.migrationsCacheScope != '' && inputs.migrationsCacheScope || format('{0}-migrations', github.repository) }}
       
