@@ -1,6 +1,12 @@
 name: auto-pr
 on:
   workflow_call:
+    inputs:
+      enabled:
+        description: "Opt in to automatic PR creation. Off by default."
+        type: boolean
+        required: false
+        default: false
     secrets:
       token:
         description: "GitHub token with contents:read and pull-requests:write (fallback if app key not provided)"
@@ -14,6 +20,7 @@ on:
 
 jobs:
   pull_request:
+    if: inputs.enabled
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
