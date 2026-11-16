@@ -12,6 +12,11 @@ on:
         required: true
         description: "Path to the ignored packages JSON file"
         type: string
+      ignored_outdated_packages:
+        required: false
+        description: "Comma-separated package names to skip in the outdated check, matched as substrings by dotnet-outdated --exclude (e.g., 'OpenTelemetry')"
+        type: string
+        default: ""
     secrets:
       githubToken:
         description: "Github token"
@@ -178,6 +183,7 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.githubToken }}
           NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ secrets.githubToken }}"
+          IGNORED_OUTDATED_PACKAGES: ${{ inputs.ignored_outdated_packages }}
         shell: bash
         run: |
           set -euo pipefail
@@ -196,10 +202,20 @@ jobs:
             solution=$(find . -type f -name '*.sln')
           fi
 
+          exclude_args=()
+          IFS=',' read -ra ignored <<< "${IGNORED_OUTDATED_PACKAGES}"
+          for pkg in ${ignored[@]+"${ignored[@]}"}; do
+            pkg="$(echo "${pkg}" | xargs)"
+            if [[ -n "${pkg}" ]]; then
+              exclude_args+=(--exclude "${pkg}")
+            fi
+          done
+
           dotnet outdated "${solution}" \
             --output outdated.json \
             --fail-on-updates \
-            --version-lock Major
+            --version-lock Major \
+            ${exclude_args[@]+"${exclude_args[@]}"}
       - shell: bash
         if: failure()
         name: Transform
