@@ -91,6 +91,9 @@ runs:
         # NuGet auth via env var - no cleartext password storage needed
         # See: https://learn.microsoft.com/en-us/nuget/reference/nuget-config-file#packagesourcecredentials
         NuGetPackageSourceCredentials_github: "Username=${{ github.actor }};Password=${{ inputs.githubToken }}"
+        # .NET SDK 10.0.404 makes `dotnet test` exit 1 when the VSTest session directory (/run/user/<uid>/...) on the
+        # runner is readable by other users, even though every test passed. The runner is single-tenant, so skip the check.
+        VSTEST_DISABLE_ARTIFACTS_DIRECTORY_VERIFICATION: "1"
       run: |
         set -euo pipefail
         # Add GitHub Packages source idempotently (remove first so re-runs on
