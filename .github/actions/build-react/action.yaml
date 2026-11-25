@@ -1,0 +1,33 @@
+name: "Build React"
+description: "Builds a React app"
+inputs:
+  version:
+    required: true
+    description: "Version"
+  minimumCoverage:
+    required: false
+    description: "Minimum code coverage percentage"
+    default: "0"
+  githubToken:
+    required: true
+    description: "Github Token for publish"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      with:
+        node-version: lts/*
+
+    - name: Install & Build (React)
+      id: build
+      shell: bash
+      working-directory: ${{ inputs.testProjectPath }}
+      env:
+        VERSION: ${{ inputs.version }}
+        GHCR_USER: ${{ github.actor }}
+        GHCR_TOKEN: ${{ inputs.githubToken }}
+        GITHUB_TOKEN: ${{ inputs.githubToken }}
+      run: |
+        npm ci
+        npm run build
